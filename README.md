@@ -1,7 +1,7 @@
 # Guidon
 
 <p align="center">
-  <img src="docs/images/guidon.png" alt="Guidon — Lead the way. Recovery is the mission." width="760">
+  <img src="guidon.png" alt="Guidon — Lead the way. Recovery is the mission." width="760">
 </p>
 
 <p align="center"><strong>Guidon by Iron Signal Systems</strong><br>
