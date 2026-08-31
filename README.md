@@ -7,116 +7,24 @@
 <p align="center"><strong>Guidon by Iron Signal Systems</strong><br>
 <strong>Lead the way. Recovery is the mission.</strong></p>
 
-> **Status:** Pre-alpha / architecture and engineering foundation.  
+> **Status:** Pre-alpha / engineering foundation.  
 > **Production status:** NOT PRODUCTION READY.
 
 Guidon is an Iron Signal Systems backup, recovery, and disaster-recovery project.
 
-Guidon is being engineered around a simple requirement:
+Guidon is built around a simple requirement:
 
-> Back up a supported system or workload, recover it at the level required, and be able to trust what was captured, what was recovered, who caused the operation, and how Guidon determined that it succeeded.
+> **Back up a supported system or workload, recover it at the level required, and be able to trust what was captured, what was recovered, who caused the operation, and how Guidon determined that it succeeded.**
 
-Guidon is not intended to compete on the number of integrations, dashboards, or checkboxes it can advertise.
+Backup creation is not the mission.
 
-The goal is narrower:
-
-**Support clearly defined workloads and make backup and recovery reliable, secure, inspectable, attributable, and verifiable inside that supported boundary.**
+**Recovery is.**
 
 ---
 
-## Why Guidon exists
+## Product scope
 
-A completed backup job does not by itself prove that a workload can be recovered.
-
-Guidon treats recovery as the mission and backup as one part of that mission.
-
-A protected workload may need to be recovered when the environment around it is partially or completely unavailable. Recovery therefore cannot assume that the original server, operating system, Active Directory trust relationship, local credentials, database instance, controller, or management plane is still healthy.
-
-Guidon is intended to answer questions such as:
-
-- What was backed up?
-- When was it captured?
-- Is the stored data intact?
-- Can it actually be recovered?
-- What recovery granularity is available?
-- Who requested the operation?
-- What identity executed it?
-- Where was the data recovered?
-- Was the recovered result verified?
-- What failed if recovery could not be completed?
-
----
-
-## Core principles
-
-### Recovery first
-
-Backup creation is not the end goal.
-
-Recovery is.
-
-A completed backup operation does not automatically prove that the protected workload can be restored successfully.
-
-### Trust what Guidon reports
-
-Guidon must not claim more than it knows.
-
-Recovery and verification states are expected to distinguish levels such as:
-
-```text
-RECEIVED
-STORED
-VERIFIED
-RECONSTRUCTABLE
-RESTORED
-VALIDATED
-```
-
-These states represent different levels of confidence.
-
-`STORED` must not be reported as `VALIDATED`.
-
-Unknown, unsupported, unavailable, and untested conditions must remain visible.
-
-### Workload-native recovery
-
-Guidon should use supported workload-native consistency and recovery mechanisms where appropriate.
-
-Examples include:
-
-- Windows VSS;
-- Microsoft SQL Server native backup and transaction-log mechanisms;
-- PostgreSQL base backup, WAL, and logical backup mechanisms.
-
-Guidon should not reimplement complex database internals without a compelling engineering reason.
-
-### Explicit security boundaries
-
-Normal backup execution, human authorization, transport identity, recovery authorization, repository authority, and disaster-recovery access are separate concerns.
-
-Guidon should not collapse them into one highly privileged account or service.
-
-### No arbitrary remote execution
-
-Guidon jobs must describe narrowly defined operations.
-
-Guidon must not become a general-purpose remote shell, PowerShell execution system, or arbitrary command framework.
-
-### Failure must be visible
-
-A failed operation should identify:
-
-- what stage failed;
-- what completed successfully;
-- what remains usable;
-- whether the operation can resume; and
-- whether administrative action is required.
-
-Generic success or failure states must not hide meaningful operational information.
-
----
-
-## Initial workload direction
+The current Guidon scope is intentionally narrow.
 
 ### Windows Server and Workstation
 
@@ -134,9 +42,9 @@ Planned capabilities include:
 - full database backup;
 - differential backup;
 - transaction-log backup;
-- database recovery;
-- alternate-name recovery;
-- point-in-time recovery;
+- full database recovery;
+- alternate-name/location recovery;
+- point-in-time recovery; and
 - granular database-object recovery where safe and practical.
 
 ### PostgreSQL
@@ -148,29 +56,117 @@ Planned capabilities include:
 - point-in-time recovery;
 - logical backup;
 - database recovery;
-- schema recovery;
+- schema recovery; and
 - table recovery.
 
-### Containers
-
-Planned capabilities include:
-
-- workload configuration;
-- persistent storage;
-- directory recovery;
-- individual persistent-file recovery.
+Containers, Kubernetes, hypervisors, cloud workloads, Microsoft 365, Exchange, Oracle, and other workload families are outside the current project scope.
 
 ---
 
-## Initial repository platform
+## Core principles
 
-The initial Guidon repository platform is:
+### Recovery first
 
-**FreeBSD using Jails**
+A completed backup job does not prove that a workload can be recovered.
 
-Guidon may use FreeBSD and ZFS capabilities where they provide useful storage and isolation properties, but the Guidon repository format must remain a Guidon format rather than becoming dependent on one specific underlying filesystem or repository host.
+Each major Guidon development phase must end in a recovery demonstration, not merely a backup demonstration.
 
-The loss of the original controller or repository host must not automatically make otherwise intact recovery data unusable.
+### Trust what Guidon reports
+
+Guidon must not claim more than it knows.
+
+Recovery and verification states may distinguish levels such as:
+
+```text
+RECEIVED
+STORED
+VERIFIED
+RECONSTRUCTABLE
+RESTORED
+VALIDATED
+```
+
+These states are not interchangeable.
+
+For example, `STORED` must not be reported as `VALIDATED`.
+
+Unknown, unsupported, unavailable, incomplete, and untested conditions must remain visible.
+
+### Workload-native recovery
+
+Guidon should use supported workload-native consistency and recovery mechanisms where appropriate.
+
+Examples include:
+
+- Windows VSS;
+- Microsoft SQL Server native backup and transaction-log mechanisms; and
+- PostgreSQL base backup, WAL, and logical backup mechanisms.
+
+Guidon should orchestrate, protect, verify, recover, and record these operations rather than unnecessarily reimplementing complex workload internals.
+
+### Simple components, explicit boundaries
+
+Guidon should prefer small, understandable components over generalized frameworks.
+
+Complexity must solve a demonstrated problem.
+
+Normal backup execution, human authorization, transport identity, repository authority, recovery authorization, and disaster-recovery access are separate concerns and must not silently collapse into one highly privileged identity.
+
+### No arbitrary remote execution
+
+Remotely initiated Guidon work must use constrained, typed operations.
+
+Guidon must not become a general-purpose remote shell, PowerShell execution system, arbitrary script runner, or generic remote-code-execution framework.
+
+### Failure is part of the product
+
+A failed operation should identify:
+
+- what stage failed;
+- what completed successfully;
+- what remains usable;
+- whether the operation can resume; and
+- whether administrative action is required.
+
+Generic success or failure states must not hide meaningful operational information.
+
+---
+
+## Initial architecture direction
+
+The first complete Guidon path is intentionally small:
+
+```text
+Domain-joined Windows Server
+        |
+        | Guidon service using gMSA
+        |
+        | outbound mTLS / TCP 443
+        v
+FreeBSD / Jail
+        |
+        v
+Guidon Repository
+```
+
+The initial repository platform is **FreeBSD using Jails**.
+
+Guidon may use FreeBSD and ZFS capabilities where useful, but the Guidon recovery format must remain a Guidon format rather than becoming dependent on a specific underlying filesystem or original controller.
+
+The first vertical slice must prove that Guidon can:
+
+1. identify a protected Windows source;
+2. capture a clearly defined filesystem scope;
+3. securely transmit the data;
+4. durably commit repository objects;
+5. commit a versioned recovery point;
+6. independently verify the stored objects;
+7. enumerate the recovery point;
+8. recover an individual file;
+9. verify the recovered file against the stored recovery point; and
+10. record what happened and which identities were involved.
+
+The target for this first complete recovery path is measured in **weeks**, not months of pre-implementation architecture work.
 
 ---
 
@@ -187,14 +183,14 @@ Protected System
         | mTLS
         | TCP 443
         v
-Guidon Repository / Control Infrastructure
+Guidon Infrastructure
 ```
 
 Mutual TLS is a core security requirement.
 
-Each protected endpoint should receive its own Guidon transport identity. Shared endpoint certificates are not the normal deployment model.
+Each protected endpoint should have its own Guidon transport identity. Shared endpoint certificates are not the normal deployment model.
 
-The transport identity is separate from the operating-system service identity.
+Transport identity is separate from the operating-system service identity.
 
 ---
 
@@ -220,11 +216,11 @@ Guidon should use the least Windows privileges required for each service boundar
 
 ---
 
-## Constrained remote jobs
+## Constrained jobs and human authorization
 
-Remotely initiated Guidon operations must use constrained job objects rather than arbitrary commands.
+A remotely initiated operation must be represented as a constrained job object, not an arbitrary command.
 
-A job may describe an operation such as:
+Examples include:
 
 ```text
 BACKUP_WINDOWS_VOLUME
@@ -233,38 +229,22 @@ RESTORE_FILE
 RESTORE_DATABASE
 ```
 
-A job must not contain a generic executable, shell expression, PowerShell command, script body, or equivalent remote-code-execution field.
-
 Privileged jobs should be:
 
 - typed;
 - signed;
 - scoped;
 - expiring;
-- replay resistant;
+- replay resistant; and
 - attributable.
 
-Endpoints must validate the job before execution.
+A valid Guidon job signature does not by itself prove that the requesting human is authorized to perform the operation.
 
----
+For Active Directory integrated deployments, Guidon should support an independent authorization decision based on the requesting user's current AD identity and authorization membership.
 
-## Human authorization
+Internally, authorization should bind to immutable identifiers such as SIDs rather than relying only on display names.
 
-A valid Guidon job signature does not necessarily prove that the requesting human is authorized to perform the operation.
-
-For Active Directory integrated deployments, Guidon should support independent authorization checks against the requesting user's current AD identity and group membership.
-
-An example administrative group is:
-
-```text
-ISS-BK-Admins
-```
-
-Internally, authorization should bind to immutable AD identifiers such as SIDs rather than relying only on display names.
-
-A small domain authorization service running under a gMSA may perform read-only Active Directory authorization checks and return a short-lived signed authorization assertion.
-
-A normal manually initiated privileged operation can therefore require both:
+A normal manually initiated privileged operation may therefore require both:
 
 ```text
 valid Guidon job authorization
@@ -273,8 +253,6 @@ valid current AD authorization
 ```
 
 Failure of either requirement must cause the normal operation to fail closed and be recorded.
-
-A cryptographically valid job submitted for an unauthorized human is a security-relevant event, not merely a failed backup job.
 
 ---
 
@@ -290,11 +268,11 @@ For a domain-joined Windows system, recovery must not depend on:
 - successful domain authentication; or
 - the original Windows installation successfully booting before recovery can begin.
 
-Secure-channel repair may be attempted where appropriate, but it is a convenience path rather than a core disaster-recovery dependency.
+Secure-channel repair may be attempted where useful, but it is a convenience path rather than a core disaster-recovery dependency.
 
-Guidon is intended to support a controlled first-boot recovery bootstrap for cases where legitimate administrative access to the restored Windows installation is otherwise unavailable.
+Guidon is intended to support a tightly controlled first-boot recovery bootstrap for cases where legitimate administrative access to the restored Windows installation is otherwise unavailable.
 
-A temporary recovery identity must be:
+Any temporary recovery identity must be:
 
 - explicitly authorized;
 - unique to the recovery;
@@ -303,13 +281,11 @@ A temporary recovery identity must be:
 - fully audited; and
 - removed when recovery is complete.
 
-Guidon must verify cleanup before declaring the recovery fully verified.
+Guidon must verify cleanup before declaring that recovery fully validated.
 
 ---
 
 ## Attribution and recovery ledger
-
-Backup and recovery activity must be attributable.
 
 Guidon must distinguish the person who requested an operation from the service or machine identity that executed it.
 
@@ -328,22 +304,14 @@ Transport identity:
 Operation:
     FILE_RESTORE
 
-Source:
-    FS01
-    D:\Finance\Budget.xlsx
-
 Recovery point:
     RP-012938
-
-Destination:
-    FS01
-    D:\Finance\Budget.xlsx
 
 Result:
     VERIFIED
 ```
 
-The human initiator, machine execution identity, and transport identity are separate facts and must remain separate.
+The human initiator, execution identity, and transport identity are separate facts and must remain separate.
 
 Successful operations and denied privileged operations must be durably recorded.
 
@@ -353,7 +321,7 @@ Successful operations and denied privileged operations must be durably recorded.
 
 Guidon recovery points should use versioned, self-describing manifests.
 
-The loss of the normal controller or catalog must not automatically make otherwise intact backup data unrecoverable.
+The loss of the normal controller or catalog must not automatically make otherwise intact recovery data unusable.
 
 Conceptually:
 
@@ -366,15 +334,13 @@ repository/
     ledger/
 ```
 
-The catalog may accelerate searching and management, but it must not be the only source capable of interpreting stored recovery data.
+The catalog may accelerate searching and management, but it must not be the only component capable of interpreting stored recovery data.
 
 ---
 
 ## Verification
 
-Guidon should independently verify stored backup data.
-
-Repository integrity and workload recoverability are not identical checks.
+Repository integrity and workload recoverability are different checks.
 
 For example:
 
@@ -382,59 +348,66 @@ For example:
 object hash valid
 ```
 
-does not necessarily mean:
+is not the same claim as:
 
 ```text
 SQL database can be restored
 ```
 
-and:
+Likewise:
 
 ```text
 Windows volume reconstructed
 ```
 
-does not necessarily mean:
+is not automatically the same as:
 
 ```text
-Windows workload is operational
+Windows workload validated as operational
 ```
 
-Guidon should report these checks separately and never report a stronger verification state than it has actually demonstrated.
+Guidon must report the level it has actually demonstrated.
 
 ---
 
-## Initial engineering target
+## Engineering roadmap
 
-The first complete vertical slice should remain intentionally narrow:
+Guidon is developed by completing progressively larger recovery paths.
+
+The current sequence is:
 
 ```text
-Domain-joined Windows Server
-        |
-        | Guidon service using gMSA
-        |
-        | outbound mTLS / TCP 443
-        v
-FreeBSD / Jail
-        |
-        v
-Guidon Repository
+FOUNDATION
+    |
+    v
+REPOSITORY CORE
+    |
+    v
+WINDOWS FILE RECOVERY
+    |
+    v
+WINDOWS OPERATIONAL PROTECTION / CONTROL
+    |
+    v
+WINDOWS VOLUME RECOVERY
+    |
+    v
+WINDOWS BARE-METAL DR
+    |
+    v
+MICROSOFT SQL SERVER
+    |
+    v
+POSTGRESQL
+    |
+    v
+GUIDON / REPOSITORY DR
+    |
+    v
+PILOT HARDENING
 ```
 
-The first implementation should prove that Guidon can:
-
-1. identify a protected Windows source;
-2. capture a clearly defined filesystem scope;
-3. securely transmit the data;
-4. commit a recovery point;
-5. independently verify repository objects;
-6. enumerate the recovery point;
-7. recover an individual file;
-8. preserve the supported Windows metadata;
-9. verify the recovered file against the stored recovery-point data; and
-10. record exactly who requested and executed the recovery.
-
-Only after that path is trustworthy should the supported workload surface expand substantially.
+The detailed engineering phases, exit criteria, and planning ranges are maintained in [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -468,10 +441,11 @@ Behavior under these conditions is part of the product.
 
 ## What Guidon is not
 
-Guidon is not initially intended to:
+Guidon is not currently intended to:
 
 - match incumbent backup vendors feature for feature;
 - support every operating system, database, hypervisor, cloud, and application;
+- support containers or Kubernetes;
 - provide arbitrary remote administration;
 - hide unsupported or unverified conditions behind a green status;
 - require broadly privileged domain identities everywhere;
@@ -500,7 +474,7 @@ Guidon succeeds when an administrator can confidently answer:
 
 > What happened during recovery?
 
-> Was the recovered result verified?
+> Was the recovered result actually verified?
 
 And when the primary environment itself has failed:
 
