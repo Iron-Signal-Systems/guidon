@@ -18,24 +18,24 @@ The planning ranges below are engineering targets, not release promises. Some wo
 | Phase | Engineering target | Primary result |
 | --- | ---: | --- |
 | 0 — Foundation | 1–2 weeks | Core contracts and trust boundaries frozen enough to implement |
-| 1 — Repository core | 3–5 weeks | Durable, verifiable Guidon recovery-point storage |
+| 1 — Repository core | 3–5 weeks | Durable, journal-attested, verifiable Guidon recovery-point storage |
 | 2 — First Windows recovery path | 4–6 weeks | Back up, delete, recover, and verify a Windows file |
 | 3 — Windows operational protection and control | 4–8 weeks | Repeatable file/directory protection, signed control, attribution |
 | 4 — Windows volume recovery | 6–10 weeks | Reconstruct and verify a protected Windows data volume |
 | 5 — Windows bare-metal DR | 10–16 weeks | Rebuild a failed Windows system, including broken-AD cases |
-| 6 — Microsoft SQL Server | 10–14 weeks | Full/diff/log protection and verified PITR |
-| 7 — PostgreSQL | 10–14 weeks | Base/WAL PITR plus logical granular recovery |
+| 6 — PostgreSQL | 10–14 weeks | Base/WAL PITR plus logical granular recovery |
+| 7 — Microsoft SQL Server | 10–14 weeks | Full/diff/log protection and verified PITR |
 | 8 — Guidon and repository DR | 6–10 weeks | Recover Guidon when controller/catalog/repository components fail |
 | 9 — Pilot hardening | 4–8 months | Installation, upgrades, scale, abuse testing, runbooks, pilot readiness |
 
 A reasonable planning target is:
 
 ```text
-First verified Windows file recovery:     ~2–3 months
-Windows bare-metal recovery:              ~7–11 months
-Windows + MSSQL + PostgreSQL capability:  ~12–17 months
-Controlled pilot candidate:               ~18–24 months
-Broader external pilot readiness:         ~24–30 months
+First verified Windows file recovery:          ~2–3 months
+Windows bare-metal recovery:                   ~7–11 months
+Windows + PostgreSQL + MSSQL capability:       ~12–17 months
+Controlled pilot candidate:                    ~18–24 months
+Broader external pilot readiness:              ~24–30 months
 ```
 
 These are cumulative engineering ranges, not contractual dates.
@@ -50,31 +50,44 @@ The goal is not to design the entire future product. The goal is to freeze only 
 
 ## Define
 
-- recovery-point identity;
-- repository object identity;
+- repository object identity and immutable SHA-256 naming;
 - versioned manifest envelope;
-- hash/integrity rules;
-- object commit semantics;
-- recovery-point commit semantics;
-- minimum verification-state meanings;
-- endpoint identity model;
+- UUIDv7 recovery-point identity;
+- object and recovery-point durability/commit semantics;
+- ZFS durability requirements and prohibition on `sync=disabled` for Guidon durable datasets;
+- restart/crash reconciliation behavior;
+- mandatory full post-failure reverification after unclean shutdown, uncertain shutdown, storage fault, or power loss;
+- verification-state meanings;
+- Record v1 factual-history contract;
+- Journal stream, receipt, checkpoint, signing, durability, and idempotency contracts;
+- synchronous Journal-gated versus durable-asynchronous records;
+- endpoint, user, gMSA, service, transport, and producer identity separation;
+- endpoint PKI lifecycle and certificate binding;
+- constrained Job v1 envelope;
+- AD Authorization Assertion v1;
+- break-glass Recovery Authority boundary;
+- observed-only network attribution model;
 - mTLS trust and revocation model;
-- constrained job envelope;
-- operation/recovery ledger envelope;
-- human, execution, and transport identity separation;
-- FreeBSD Jail responsibility boundaries; and
-- initial threat model.
+- PCAP/Wireshark transport acceptance requirements;
+- retention and deletion authority contract;
+- configuration/policy provenance contract;
+- time/clock provenance including ISS-system clock observation;
+- FreeBSD Repository/Journal Jail responsibility boundaries; and
+- initial threat model and explicit unsupported claims.
+
+The detailed contracts are maintained under [`docs/`](docs/README.md).
 
 ## Explicitly defer
 
-- global deduplication optimization;
+- chunk-size/chunking optimization beyond the required object contract;
 - repository replication;
 - high availability;
 - polished UI;
-- advanced retention policy;
+- advanced retention-policy features beyond the deletion-safety contract;
 - mass deployment tooling;
-- broad workload abstractions; and
-- speculative plugin/framework architecture.
+- broad workload abstractions;
+- speculative plugin/framework architecture; and
+- hardware-backed/external Journal anchoring unless implementation evidence justifies it early.
 
 ## Exit gate
 
@@ -84,9 +97,13 @@ Guidon can clearly answer:
 2. When is an object durable?
 3. What is a recovery point?
 4. When is a recovery point committed?
-5. How is integrity checked?
-6. How is a protected endpoint identified?
-7. How could a future Guidon installation interpret an intact recovery point without the original catalog?
+5. What does each verification/recovery state actually mean?
+6. How is a protected endpoint identified when certificates rotate?
+7. Which authority may request, authorize, attest, recover, or destroy data?
+8. What must happen after a crash or power loss before old backups are presented as currently verified?
+9. How is authoritative operational history independently journal-attested?
+10. How can a future Guidon installation interpret intact recovery data without the original catalog?
+11. What security claims does Guidon make, and where do those claims explicitly stop?
 
 ---
 
@@ -94,51 +111,71 @@ Guidon can clearly answer:
 
 **Target:** 3–5 weeks
 
-Build the smallest correct FreeBSD repository service.
+Build the smallest correct FreeBSD Repository and Journal path.
 
 ## Implement
 
 - FreeBSD host baseline;
-- initial Jail boundary;
-- HTTPS listener on TCP 443;
-- mutual TLS;
+- separate Repository and Journal Jails;
+- dedicated least-privilege service identities;
+- separate ZFS datasets and durability boundaries;
+- Repository HTTPS listener on TCP 443;
+- Repository-to-Journal mTLS;
+- mutual TLS identity binding;
 - unique endpoint identity validation;
 - streamed object upload;
-- content hashing while receiving;
+- SHA-256 while receiving;
 - temporary-object write;
-- durable commit boundary;
-- duplicate-object handling;
+- explicit synchronous durability boundary;
+- atomic immutable object publication;
+- duplicate-object independent verification;
 - versioned manifest submission;
-- atomic recovery-point commit;
+- recovery-point preparation and publication contract;
+- authoritative Record v1 storage;
+- Journal exact-byte record receipt, independent SHA-256, stream sequence, and signed receipt;
+- bounded Journal segments and signed checkpoints;
 - object existence/integrity verification;
-- recovery-point enumeration; and
-- minimal append-oriented operation records.
+- recovery-point enumeration;
+- restart reconciliation; and
+- post-failure verification epochs.
 
-The initial data path should stay conceptually simple:
+The initial object data path should stay conceptually simple:
 
 ```text
 receive
-    -> hash
+    -> SHA-256 while streaming
     -> write temporary object
-    -> durable storage boundary
-    -> commit object
-    -> reference from manifest
-    -> commit recovery point
+    -> complete/hash validate
+    -> synchronous durability boundary
+    -> atomic publish into SHA-256 namespace
+    -> verify
+    -> reference from immutable manifest
 ```
+
+Recovery-point publication must remain separate and Journal-gated.
 
 ## Failure tests
 
 - disconnect halfway through an object;
-- kill the repository process during receive;
+- kill the Repository process at each durability boundary;
+- kill the Journal process at each Journal durability boundary;
+- abrupt host power loss at deliberately selected boundaries;
 - resend the same object;
+- same object ID with different bytes;
+- same Record v1 ID with same bytes and with different bytes;
 - submit a manifest referencing a missing object;
 - corrupt a committed object;
-- exhaust repository storage; and
-- restart the Jail and re-enumerate committed recovery points.
+- corrupt a Journal entry/checkpoint;
+- make the Journal unavailable during backup and during a gated operation;
+- exhaust Repository storage;
+- exhaust Journal storage;
+- restart after a clean shutdown;
+- restart after an unclean shutdown; and
+- re-enumerate and fully reverify retained recovery points after the unclean event.
 
 ## Exit gate
 
-Guidon can accept arbitrary test objects over mTLS, durably commit them, create a recovery point, independently detect corruption, and refuse to create a false-success recovery point when required data is incomplete.
+Guidon can accept test objects over mTLS, durably publish them, create and journal authoritative records, create a recovery point only after all commit requirements are satisfied, independently detect corruption, survive/reconcile deliberate crashes, and refuse false-success publication when required data or Journal attestation is incomplete.
 
 ---
 
@@ -152,19 +189,22 @@ This phase proves the product idea end to end.
 
 - Windows service skeleton;
 - domain-joined gMSA execution;
-- unique endpoint mTLS identity;
+- stable Guidon endpoint UUID;
+- unique endpoint mTLS identity and certificate binding;
 - protected-source identity;
 - explicit filesystem scope;
 - file enumeration;
 - content capture;
 - minimum supported NTFS metadata;
-- repository transfer;
+- Repository transfer;
 - manifest construction;
 - recovery-point commit;
 - recovery-point browsing;
 - alternate-location file restore;
-- original-location file restore; and
-- restored-content verification.
+- original-location file restore;
+- restored-content verification;
+- factual attribution records; and
+- PCAP/Wireshark acceptance tests for the implemented Guidon network path.
 
 VSS should be introduced where consistency requires it, but this phase should not be expanded into full-system backup work.
 
@@ -178,16 +218,16 @@ create file
     -> recover file
     -> verify content
     -> verify supported metadata
-    -> inspect operation record
+    -> inspect Repository + Journal records
 ```
 
-Repeat with interrupted transfer and repository restart.
+Repeat with interrupted transfer, Repository restart, Journal restart, and an unclean/power-loss verification-epoch test.
 
 ## Exit gate
 
 Guidon can truthfully demonstrate:
 
-> A Windows file was captured, stored, verified, destroyed, recovered, and verified against its recovery point.
+> A Windows file was captured, durably stored, verified, committed into a specific recovery point, destroyed, recovered, and verified against that recovery point, with the participating identities and authoritative record history preserved.
 
 Expected cumulative target: **approximately 2–3 months from project implementation start.**
 
@@ -209,19 +249,22 @@ Turn the first vertical slice into a repeatable operational path without jumping
 - recovery browsing;
 - scheduled backup jobs;
 - manual backup jobs;
-- constrained signed job objects;
-- expiration and replay protection;
+- constrained signed Job v1 objects;
+- expiration, nonce, and replay protection;
 - endpoint/job binding;
-- human identity attribution;
-- AD authorization broker under gMSA;
+- user identity attribution;
+- gMSA execution attribution;
+- AD Authorization Broker under dedicated gMSA;
 - SID-based authorization;
+- short-lived Job-bound AD Authorization Assertion v1;
 - fail-closed authorization behavior;
-- denied-operation records; and
+- denied/not-determined operation records;
+- certificate renewal/revocation behavior; and
 - minimal operational UI or CLI needed to exercise the system safely.
 
 ## Exit gate
 
-An authorized administrator can start a constrained backup or restore operation without granting Guidon arbitrary remote-command capability, and Guidon can show who requested the operation, what identity executed it, and what actually occurred.
+An authorized administrator can start a constrained backup or restore operation without granting Guidon arbitrary remote-command capability, and Guidon can show who requested the operation, what user/gMSA/transport identities participated, what authorization source was queried, and what actually occurred.
 
 ---
 
@@ -245,7 +288,7 @@ Expand from files/directories to data-volume reconstruction.
 - millions-of-file characterization;
 - restore to alternate disk/volume;
 - restore to replacement volume; and
-- post-recovery verification.
+- post-recovery verification with exact stated checks.
 
 ## Exit gate
 
@@ -262,6 +305,9 @@ This is the largest Windows engineering phase and a major product milestone.
 ## Implement
 
 - Guidon recovery environment;
+- offline Recovery Authority trust path;
+- short-lived scoped recovery certificate/credential with proof of possession;
+- signed Recovery Job;
 - repository authentication from recovery environment;
 - disk and partition reconstruction;
 - EFI/system/boot volume recovery;
@@ -270,22 +316,24 @@ This is the largest Windows engineering phase and a major product milestone.
 - data-volume integration;
 - first-boot validation;
 - workload/service validation; and
-- recovery ledger integration.
+- recovery-record integration.
 
 ## Broken-domain recovery requirement
 
 Bare-metal recovery must not depend on:
 
 - working AD trust;
-- knowing the restored local Administrator password; or
-- the normal gMSA being immediately usable.
+- knowing the restored local Administrator password;
+- a matching historic LAPS password;
+- the normal gMSA being immediately usable; or
+- successful secure-channel repair.
 
 Secure-channel repair may be attempted but is not the required recovery mechanism.
 
 Implement the controlled first-boot recovery bootstrap:
 
 - signed recovery authorization;
-- target-machine binding;
+- target/recovery-point/action binding;
 - expiration;
 - nonce/replay protection;
 - one-time temporary local recovery administrator;
@@ -293,7 +341,7 @@ Implement the controlled first-boot recovery bootstrap:
 - tightly controlled credential release;
 - TTL/watchdog cleanup;
 - account removal; and
-- verification that the bootstrap is disarmed before final validation.
+- verification that the account is absent and bootstrap disarmed before final validation.
 
 ## Signature acceptance test
 
@@ -315,7 +363,47 @@ Expected cumulative target: **approximately 7–11 months.**
 
 ---
 
-# Phase 6 — Microsoft SQL Server
+# Phase 6 — PostgreSQL
+
+**Target:** 10–14 weeks
+
+PostgreSQL requires both physical and logical protection paths because they solve different recovery problems.
+
+## Physical protection
+
+- cluster discovery and observed system identifier;
+- physical base backup;
+- WAL archive/stream handling;
+- WAL continuity tracking;
+- timeline handling;
+- point-in-time recovery;
+- alternate recovery location; and
+- recovered-cluster validation with explicitly defined checks.
+
+## Logical protection
+
+- logical database backup;
+- schema backup/recovery;
+- table backup/recovery; and
+- granular recovery validation.
+
+## Failure tests
+
+- missing WAL segment;
+- interrupted base backup;
+- corrupt base-backup object;
+- timeline changes;
+- insufficient PostgreSQL permission;
+- unavailable recovery target; and
+- incompatible recovery request.
+
+## Exit gate
+
+Recover an entire PostgreSQL cluster to a selected point in time and independently recover a selected logical object such as a table.
+
+---
+
+# Phase 7 — Microsoft SQL Server
 
 **Target:** 10–14 weeks
 
@@ -324,6 +412,7 @@ Guidon should orchestrate Microsoft SQL Server's supported native mechanisms rat
 ## Implement
 
 - instance/database discovery;
+- native identifier capture where observed;
 - least-privilege execution model;
 - full backup;
 - differential backup;
@@ -335,7 +424,7 @@ Guidon should orchestrate Microsoft SQL Server's supported native mechanisms rat
 - complete database restore;
 - alternate-name/location restore;
 - point-in-time restore;
-- restore validation;
+- restore validation with explicitly defined checks;
 - isolated restore testing; and
 - operation attribution.
 
@@ -359,47 +448,7 @@ Granular object/table recovery should use an isolated temporary database restore
 
 Destroy a test database and recover it to a selected point in time. Open it, validate expected data, and record exactly how the recovery was constructed and executed.
 
----
-
-# Phase 7 — PostgreSQL
-
-**Target:** 10–14 weeks
-
-PostgreSQL requires both physical and logical protection paths because they solve different recovery problems.
-
-## Physical protection
-
-- cluster discovery;
-- physical base backup;
-- WAL archive/stream handling;
-- WAL continuity tracking;
-- timeline handling;
-- point-in-time recovery;
-- alternate recovery location; and
-- recovered-cluster validation.
-
-## Logical protection
-
-- logical database backup;
-- schema backup/recovery;
-- table backup/recovery; and
-- granular recovery validation.
-
-## Failure tests
-
-- missing WAL segment;
-- interrupted base backup;
-- corrupt base-backup object;
-- timeline changes;
-- insufficient PostgreSQL permission;
-- unavailable recovery target; and
-- incompatible recovery request.
-
-## Exit gate
-
-Recover an entire PostgreSQL cluster to a selected point in time and independently recover a selected logical object such as a table.
-
-Expected cumulative target for Windows + MSSQL + PostgreSQL capability: **approximately 12–17 months.**
+Expected cumulative target for Windows + PostgreSQL + MSSQL capability: **approximately 12–17 months.**
 
 ---
 
@@ -413,25 +462,29 @@ The backup system must itself be recoverable.
 
 - controller database loss;
 - controller host loss;
-- repository-service loss;
-- repository-host replacement;
-- destroyed indexes/catalogs; and
+- Repository service loss;
+- Journal service loss;
+- Repository host replacement;
+- destroyed indexes/catalogs;
+- signing-key generation changes; and
 - software version changes.
 
 ## Required capabilities
 
 - import/mount intact repository data;
 - enumerate self-describing recovery points;
-- rebuild catalog/index data;
+- rebuild catalog/index data from repository authority;
 - verify manifests and referenced objects;
-- distinguish unavailable data from corrupt data; and
+- verify Journal receipts/checkpoints and expose gaps/mismatches;
+- distinguish unavailable data from integrity mismatch;
+- preserve historical record continuity without manufacturing missing history; and
 - recover protected workloads without requiring the original controller database.
 
-Repository replication may be introduced here if earlier scale or resilience testing justifies it.
+Repository replication or external Journal anchoring may be introduced here if earlier testing justifies them.
 
 ## Exit gate
 
-Destroy the Guidon controller/catalog, rebuild Guidon around intact repository data, rediscover recovery points, verify them, and perform a real workload recovery.
+Destroy the Guidon controller/catalog, rebuild Guidon around intact repository data, rediscover recovery points, reverify them, reconcile Journal history, and perform a real workload recovery.
 
 ---
 
@@ -459,9 +512,10 @@ Hardening work begins before Phase 9; this phase closes the remaining gaps.
 ### Repository operations
 
 - capacity monitoring;
-- retention;
+- retention implementation;
 - garbage collection;
-- scrubbing;
+- verification/scrubbing scheduling;
+- post-storage-event reverification;
 - storage-full behavior;
 - compression/deduplication where justified;
 - repository migration; and
@@ -486,6 +540,7 @@ Hardening work begins before Phase 9; this phase closes the remaining gaps.
 - mTLS/key lifecycle review;
 - authorization abuse tests;
 - replay/tamper tests;
+- PCAP/Wireshark regression acceptance for every implemented Guidon-controlled connection type;
 - input fuzzing where applicable;
 - recovery-environment review;
 - bootstrap cleanup abuse cases; and
@@ -512,10 +567,13 @@ Repeatedly destroy and recover:
 - Windows volumes;
 - Windows systems;
 - Windows systems with broken AD trust;
+- PostgreSQL clusters and logical objects;
 - SQL Server databases;
-- PostgreSQL clusters;
-- Guidon controller/catalog state; and
-- repository service infrastructure.
+- Guidon controller/catalog state;
+- Repository service infrastructure; and
+- Journal service infrastructure.
+
+Include deliberate crash/power-loss tests followed by full retained-data reverification so integrity problems are discovered at the event, not months later during an emergency restore.
 
 ## Exit gate
 
@@ -531,8 +589,8 @@ The current active workload boundary is:
 
 ```text
 Windows Server / Workstation
-Microsoft SQL Server
 PostgreSQL
+Microsoft SQL Server
 ```
 
 The roadmap does **not** currently include:
@@ -556,17 +614,18 @@ New workload families should be added only after the existing recovery paths jus
 The roadmap is deliberately ordered so that Guidon earns each stronger claim.
 
 ```text
-store bytes
-    -> prove integrity
+store exact bytes
+    -> prove current integrity
     -> recover a file
     -> recover a volume
     -> recover a machine
-    -> recover the machine when its surrounding identity infrastructure is damaged
-    -> recover databases to a point in time
+    -> recover the machine when surrounding identity infrastructure is damaged
+    -> recover PostgreSQL to a point in time and at logical granularity
+    -> recover SQL Server to a point in time
     -> recover Guidon itself
     -> prove the whole system under sustained failure and scale
 ```
 
-Guidon should never advance a capability because the backup side merely appears to work.
+Guidon never advances a capability because the backup side merely appears to work.
 
 **Recovery remains the mission.**
