@@ -24,13 +24,15 @@ Backup creation is not the mission.
 
 ## Product scope
 
-The current Guidon scope is intentionally narrow:
+The current Guidon scope is intentionally bounded:
 
 - **Windows Server and Workstation** — full system, volume, directory, and individual-file recovery;
-- **PostgreSQL** — physical base backup, WAL protection, point-in-time recovery, logical backup, and database/schema/table recovery; and
-- **Microsoft SQL Server** — full/differential/log backup, complete database recovery, alternate-name/location recovery, point-in-time recovery, and later granular recovery through supported isolated restore/extraction paths.
+- **PostgreSQL** — physical base backup, WAL protection, point-in-time recovery, logical backup, and database/schema/table recovery;
+- **Microsoft SQL Server** — full/differential/log backup, complete database recovery, alternate-name/location recovery, point-in-time recovery, and later granular recovery through supported isolated restore/extraction paths;
+- **Linux** — supported file/directory, volume, and bare-metal recovery using Linux-native implementation and an explicit supported distribution/filesystem/boot/storage matrix; and
+- **Virtualization** — supported full-VM and individual-virtual-disk recovery for Proxmox VE QEMU/KVM, VMware vSphere, and Microsoft Hyper-V, implemented in that roadmap order using each platform's supported native interfaces.
 
-Containers, Kubernetes, hypervisors, cloud workload families, Microsoft 365, Exchange, Oracle, and other workload families are outside the current project scope.
+Containers and Kubernetes, including Proxmox LXC container recovery, cloud workload families, Microsoft 365, Exchange, Oracle, cross-hypervisor conversion, hypervisor-host bare-metal recovery, and other workload families remain outside the current committed scope.
 
 ---
 
