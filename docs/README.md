@@ -13,7 +13,7 @@ Guidon follows one overriding reporting rule:
 - [Repository](architecture/REPOSITORY.md) — objects, manifests, recovery points, durability, ZFS requirements, crash reconciliation, and post-failure reverification.
 - [Journal](architecture/JOURNAL.md) — independent record attestation, streams, segments, receipts, checkpoints, signing, durability, and gating.
 - [Multi-witness and external anchoring](architecture/MULTI-WITNESS-AND-ANCHORING.md) — independent Journal A/B witnesses, degraded 1-of-2 operational policy direction, witness-conflict detection, and the external COW/write-once/always-advancing historical anchor.
-- [Recovery Copy appliance](architecture/RECOVERY-COPY.md) — separate push-only recovery-copy system, independent verification, separate RSA-4096 recovery-administration trust root, MFA, and administrator-controlled export/re-import.
+- [Recovery Copy appliance](architecture/RECOVERY-COPY.md) — separate push-only recovery-copy system, independent verification, separate recovery-administration trust root, initial classical RSA-4096 administrator credential profile, MFA, and administrator-controlled export/re-import.
 - [Identity and trust](architecture/IDENTITY-AND-TRUST.md) — endpoint/user/gMSA identity, PKI, AD authorization, Controller signing, and break-glass Recovery Authority.
 - [Network security](architecture/NETWORK-SECURITY.md) — mTLS, identity binding, factual network observations, and PCAP/Wireshark acceptance.
 - [At-rest confidentiality](architecture/AT-REST-CONFIDENTIALITY.md) — initial ZFS storage-encryption boundary, application-encrypted Job control artifacts, Recovery Copy key separation, offline-media threat model, and explicit unsupported confidentiality claims.
