@@ -171,25 +171,26 @@ Derived catalog/index data is not part of the minimum authority.
 
 Journal private signing keys remain inside the Journal signing boundary and are never copied into the Repository by this contract.
 
-For every Journal `signing_key_id` referenced by a committed recovery point, the Repository MUST retain:
+For every Journal `signing_key_id` referenced by a committed recovery point, the Repository retains the exact public verification material and metadata required by the signature profile that created the referenced artifact.
+
+The stable Repository Format v1 locations remain:
 
 ```text
 /journal-verification-keys/<signing_key_id>.pub
 /journal-verification-keys/<signing_key_id>.json
 ```
 
-For Ed25519 v1:
+`.pub` contains the exact canonical public verification bytes defined by the applicable signature profile. `.json` identifies at least the `signing_key_id`, signature/profile version, algorithm, public-key encoding, first-observed/accepted generation facts, and trust/key-transition references where applicable.
+
+For Ed25519 Signature v1, the existing representation is unchanged:
 
 - `.pub` contains exactly the raw 32-byte Ed25519 public key;
-- `.json` is an Exact-Byte Encoding v1 metadata document containing at least `signing_key_id`, `algorithm = ed25519`, first-observed/accepted generation facts, and trust/key-transition references where applicable.
+- `.json` identifies `algorithm = ed25519` and the applicable Signature v1 profile; and
+- `signing_key_id = sha256:<lowercase SHA-256 of exact raw 32-byte public key>`.
 
-The Repository independently calculates:
+A future signature profile defines its own canonical public-key encoding and key-ID derivation rules. A future profile may remain within Repository Format v1 only when its verification material can be deterministically represented and discovered under this existing portability model without changing the meaning of existing v1 artifacts. Otherwise a new Repository Format version is required.
 
-```text
-signing_key_id = sha256:<lowercase SHA-256 of exact raw 32-byte public key>
-```
-
-A mismatch is an integrity condition.
+Cryptographic agility never authorizes an old reader to guess the algorithm or key encoding of unknown verification material. Unknown/unsupported signature profiles are surfaced and mutation/recovery claims fail closed according to compatibility policy.
 
 ## Public-key history is not trust policy by itself
 
@@ -254,5 +255,6 @@ Test at minimum:
 - descriptor digest mismatch;
 - missing Journal public key for a referenced receipt;
 - public-key bytes whose calculated ID mismatches metadata/path;
+- unknown/unsupported Journal signature profile or public-key encoding is surfaced and never autodetected/reinterpreted as Ed25519;
 - missing/invalid recovery-point `commit.json`; and
 - catalog rebuilt solely from intact Repository Format v1 authority.
