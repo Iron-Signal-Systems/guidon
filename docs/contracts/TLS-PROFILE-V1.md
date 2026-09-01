@@ -163,6 +163,14 @@ Guidon must not allow replayable TLS early data to bypass Job v1 nonce/replay ha
 
 Session resumption may be used only where peer identity and current authorization/trust requirements remain correctly revalidated by the selected TLS implementation/profile.
 
+## Regulated cryptographic deployment profiles
+
+This TLS profile defines protocol/security behavior; `../architecture/CRYPTOGRAPHIC-ARCHITECTURE.md` defines the higher-level cryptographic compliance/profile rules.
+
+Where a deployment requires a FIPS 140-3 validated cryptographic implementation or another regulated cryptographic boundary, the TLS implementation must use an allowed provider/module and operating mode covered by that deployment profile. A configured/requested FIPS mode is not by itself proof that the required validated module/provider is actually in use.
+
+Guidon records/configures the applicable provider/module/profile provenance where it can establish it. If the required regulated TLS profile cannot be established, Guidon rejects the connection/operation rather than silently negotiating through a nonconforming provider or weaker profile.
+
 ## Private-key handling
 
 Transport private keys are separate from:
