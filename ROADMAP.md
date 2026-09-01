@@ -77,7 +77,9 @@ The goal is not to design the entire future product. The goal is to freeze only 
 - interactive privileged-operation MFA contract, including TOTP replay handling and exact-Job binding;
 - mature multi-witness Journal direction without making Phase 1 depend on distributed quorum;
 - external write-once advancing witness semantics and explicit host-root limitations;
-- Recovery Copy appliance trust boundary, push-only replication direction, and separate recovery-export trust root; and
+- Recovery Copy appliance trust boundary, push-only replication direction, and separate recovery-export trust root;
+- cryptographic compliance/profile architecture, including FIPS 140-3/CJIS-compatible implementation direction, validated-module truthfulness, no silent downgrade, historical verification, and post-quantum migration without Repository/Record redesign;
+- role-appropriate presentation-depth invariants, including separation of view depth from operational authority and prohibition on projecting unknown/degraded/unverified state as positive status; and
 - initial threat model and explicit unsupported claims.
 
 The detailed contracts are maintained under [`docs/`](docs/README.md).
@@ -91,7 +93,7 @@ The following are architecturally documented now but are not required to be impl
 - hardware-backed witness high-water mark or signing key;
 - independent Recovery Copy appliance;
 - repository replication;
-- recovery-export packaging and RSA-4096 Recovery Copy administrator PKI;
+- recovery-export packaging and the initial classical RSA-4096 Recovery Copy administrator PKI/profile;
 - multi-person approval policy;
 - high availability;
 - chunk-size/chunking optimization beyond the required object contract;
@@ -122,6 +124,8 @@ Guidon can clearly answer:
 14. How can future Journal redundancy improve availability without changing the fail-closed meaning of Journal gating?
 15. What is the role of the external advancing witness, and what does it not protect against?
 16. What trust boundary will a future Recovery Copy appliance enforce between replication ingress and administrator recovery export?
+17. How does Guidon distinguish approved algorithms, validated cryptographic modules, and compliant deployment claims; how can cryptographic algorithms/providers migrate without rewriting historical truth?
+18. How can Guidon provide simple role-appropriate status while preserving unknown/degraded/unverified conditions and keeping presentation depth separate from operational authority?
 
 ---
 
@@ -159,8 +163,10 @@ Build the smallest correct FreeBSD Repository and Journal path. Phase 1 intentio
 - post-failure verification epochs;
 - encrypted-at-rest persistence for any Phase 1 Job/control artifact that is durably queued or spooled;
 - component-specific Job-storage key separation and no plaintext durable Job copies;
-- no plaintext Job bodies in normal logs, crash artifacts, or support bundles; and
-- Record/authorization fields capable of representing MFA method/result without ever storing the OTP value.
+- no plaintext Job bodies in normal logs, crash artifacts, or support bundles;
+- Record/authorization fields capable of representing MFA method/result without ever storing the OTP value;
+- cryptographic-profile/provider provenance representation sufficient to distinguish requested configuration from established runtime cryptographic state; and
+- structured status/provenance sufficient for later summary/operations/technical/authoritative presentation without collapsing unknown/degraded states into boolean success.
 
 The initial object data path should stay conceptually simple:
 
