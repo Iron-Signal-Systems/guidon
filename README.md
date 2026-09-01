@@ -84,6 +84,14 @@ Any complete Guidon Job that is durably queued/spooled is encrypted at rest; the
 
 Human authorization, MFA factors, Windows execution identity, endpoint transport identity, Controller job signing, Journal attestation signing, AD authorization signing, recovery-copy administration, storage-encryption authority, and break-glass Recovery Authority are separate security concerns and must not silently collapse into one credential or key.
 
+### Cryptographic floor and agility
+
+Applicable regulatory requirements such as FIPS 140-3/CJIS establish a minimum deployment floor, not Guidon's maximum security level. Guidon separates approved algorithms from validated cryptographic-module and deployment-compliance claims, prohibits silent downgrade, versions cryptographic profiles/key generations, preserves historical verification across approved migrations, and maintains an architectural path to NIST-standardized post-quantum cryptography without redefining Repository or authoritative-history semantics.
+
+### Simple presentation, authoritative drill-down
+
+Guidon may present the same underlying facts at different levels of detail for executive/status, operational, technical, and authoritative review. A summary may simplify information but must not convert unknown, not-observed, unverified, stale, failed, or degraded conditions into a positive state. Presentation depth is independent from operational authority: deep visibility does not inherently grant restore, deletion, trust-management, or recovery-export power.
+
 ### Failure is part of the product
 
 Failures, refusals, integrity mismatches, unavailable dependencies, incomplete operations, and reconciliation outcomes are first-class records. Guidon must not hide meaningful failure information behind a generic success/failure flag.
