@@ -241,13 +241,15 @@ If the narrow write credential can submit malicious-but-internally-consistent ne
 
 ## Recovery Copy administrator credential compromise
 
-Recovery Copy export administration uses a separate trust root and RSA-4096 administrator identity plus required MFA.
+Recovery Copy export administration uses a separate trust root and an administrator credential under the active approved Recovery Copy administration profile, plus required MFA. The initial classical profile uses RSA-4096.
 
 Compromise of that credential/MFA domain is serious because it may expose independently retained recovery data through allowed export operations.
 
 It does not automatically grant primary Repository/Journals/Controller signing authority.
 
 Response: scope separation, exact export authorization, MFA, Records/Journal facts where available, and explicit revocation/rotation procedures. Complete compromise of the Recovery Copy administrator authority remains a real compromise.
+
+The threat remains the same across future credential algorithms; changing the credential profile does not change the Recovery Copy administrator authority or its blast radius.
 
 ## Recovery Copy host-root compromise
 
