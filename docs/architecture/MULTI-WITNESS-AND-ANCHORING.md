@@ -43,7 +43,7 @@ Each operational Journal has separate:
 journal_instance_id
 Journal service identity
 transport identity
-Ed25519 attestation key
+attestation signing key for the active approved Journal signature profile
 signing_key_id
 Journal streams
 stream sequence numbers
@@ -51,6 +51,8 @@ segments
 checkpoints
 local durable storage
 ```
+
+Signature v1 uses an independent Ed25519 attestation key per Journal. A future approved signature profile does not permit Journal A and Journal B to collapse onto one shared private key merely because the algorithm changes.
 
 No Journal private key is cloned merely to make a redundant instance.
 
@@ -85,6 +87,8 @@ exact record_sha256
 ```
 
 They do **not** require identical internal streams or segment boundaries.
+
+Journal signature-algorithm migration does not redefine authoritative Record identity or the `record_id + exact record_sha256` correlation rule.
 
 A future Guidon status/reconciliation process may compare witnesses:
 
