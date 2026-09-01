@@ -2,7 +2,7 @@
 
 ## Principle
 
-Guidon separates stable identities, execution identities, human identities, transport credentials, authorization assertions, and signing authorities.
+Guidon separates stable identities, execution identities, human identities, authentication factors, transport credentials, authorization assertions, signing authorities, storage-encryption authorities, and recovery authorities.
 
 No single credential should silently become universal authority.
 
@@ -19,6 +19,8 @@ transport_identity
 producer
 network_observation
 ```
+
+MFA observations are authentication/authorization facts associated with an identity and one authorization event; a TOTP factor is not represented as a user.
 
 A gMSA is not represented as a user.
 
@@ -148,6 +150,10 @@ Controller Job signing
 Journal attestation signing
 AD Authorization Broker signing
 Recovery Authority
+Recovery Copy administration PKI
+Job-storage encryption KEKs
+MFA/TOTP secret-protection keys
+storage-encryption keys
 ```
 
 Examples:
@@ -158,6 +164,12 @@ Journal mTLS private key
 
 Controller mTLS private key
     != Controller Job signing key
+
+Controller Job signing key
+    != Controller Job-storage KEK
+
+normal Guidon PKI root
+    != Recovery Copy administration root
 ```
 
 Endpoint transport private keys should normally be generated and retained on the endpoint and not exported to the Repository.
@@ -167,6 +179,50 @@ Endpoint transport private keys should normally be generated and retained on the
 A valid Controller Job signature proves that a trusted Guidon job-signing authority signed the exact Job v1 bytes. It does **not** prove that the requesting user is authorized.
 
 For normal manually initiated privileged operations, Guidon requires the relevant authorization path separately.
+
+Any durable Job copy is encrypted according to `../contracts/JOB-STORAGE-AND-MFA-V1.md`; possession of a Job-storage decryption key does not become Job signing authority.
+
+## MFA/TOTP factor model
+
+Guidon MFA v1 uses TOTP for policy-defined interactive privileged operations as defined in `../contracts/JOB-STORAGE-AND-MFA-V1.md`.
+
+The initial v1 timestep is 30 seconds.
+
+A successful TOTP verification is a factual statement that the configured verifier accepted the enrolled factor at a specific time/context. It is not proof of broad human intent and is not a reusable administrator identity.
+
+The exact OTP value is never retained in Record v1, Journal, Job bodies, logs, support bundles, or durable replay state.
+
+The verifier preserves only non-secret facts needed to explain the authorization, such as:
+
+```text
+mfa_method = totp
+mfa_result
+mfa_identity/token reference
+verified_at
+verifier identity/instance
+verifier clock provenance
+accepted time-step/replay reference
+job_id
+job_sha256
+```
+
+The TOTP shared secret is encrypted at rest under an MFA-verifier-specific key boundary and is not stored as ordinary configuration.
+
+## Exact-Job MFA binding
+
+TOTP itself does not contain the Job hash. Guidon creates the binding after successful factor verification by issuing/signing the authorization assertion for the exact:
+
+```text
+job_id
+job_sha256
+operation
+target/scope
+MFA verification reference/result
+```
+
+Changing the Job bytes invalidates the authorization relationship.
+
+For high-risk operations that require exact-Job MFA, Guidon does not substitute a generic `MFA was completed recently` session window for that binding.
 
 ## AD Authorization Assertion v1
 
@@ -191,6 +247,7 @@ endpoint/target scope
 authorization requirement/policy
 required SID/group fact
 AD source/DC observations
+MFA method/result/reference when required
 result
 producer/Auth Broker identity
 Broker gMSA authentication record reference
@@ -205,7 +262,7 @@ denied
 not_determined
 ```
 
-AD unavailable, invalid response, expired context, or inability to establish the required fact is `not_determined`, not `denied` and not `authorized`.
+AD unavailable, invalid response, expired context, inability to establish the required fact, or required MFA verifier unavailability is `not_determined`, not silently `authorized`.
 
 Normal privileged operations fail closed for both `denied` and `not_determined`, while preserving the exact reason.
 
@@ -217,6 +274,30 @@ The Broker's AD communication is encrypted/authenticated/fail-closed according t
 
 The Broker does not copy the full user group/token set unless needed for the specific authorization check.
 
+## Normal versus recovery MFA
+
+Guidon deliberately separates normal-domain authorization from disaster-recovery authorization.
+
+Normal path:
+
+```text
+human identity/authentication
+    + AD authorization where required
+    + TOTP MFA where policy requires
+    -> exact-Job-bound authorization assertion
+```
+
+Recovery path:
+
+```text
+offline/separate Recovery Authority
+    + recovery credential/proof of possession
+    + independent recovery TOTP where policy requires
+    -> exact Recovery Job authorization
+```
+
+Production AD or the normal Controller database being unavailable does not cause recovery MFA to be skipped. Recovery MFA material is maintained under its own recovery-capable trust boundary.
+
 ## Break-glass Recovery Authority
 
 Break-glass recovery does not use a stored emergency password and does not upload/store a recovery private key on normal Guidon infrastructure.
@@ -225,8 +306,9 @@ Guidon uses a dedicated offline Recovery Authority separate from:
 
 - normal endpoint CA/transport credentials;
 - Controller signing authority;
-- Journal signing authority; and
-- AD Authorization Broker authority.
+- Journal signing authority;
+- AD Authorization Broker authority; and
+- Recovery Copy administration authority.
 
 Guidon infrastructure retains only the required public trust material.
 
@@ -237,6 +319,7 @@ offline Recovery Authority
     -> issues short-lived scoped recovery credential/certificate
     -> private key exists only in recovery environment/session
     -> proof of possession
+    -> required independent recovery MFA
     -> signed Recovery Job
     -> mTLS
 ```
@@ -249,13 +332,35 @@ Break-glass recovery records the exact certificate identity/chain/validity and p
 
 If AD is unavailable during disaster recovery, Guidon records AD as unavailable and records the Recovery Authority as the actual authorization source. It does not pretend AD approved the operation.
 
-Break-glass recovery authority is recovery authority, not automatic repository-deletion authority.
+Break-glass recovery authority is recovery authority, not automatic repository-deletion or Recovery Copy export/deletion authority.
+
+## Recovery Copy administration trust root
+
+The Recovery Copy appliance uses a separate administrative/export PKI under `RECOVERY-COPY.md`.
+
+The intended hierarchy is:
+
+```text
+Offline Recovery Copy Root CA
+    -> Recovery Copy Administration Intermediate CA
+        -> RSA-4096 Recovery Copy administrator certificate
+```
+
+The root private key should normally remain offline.
+
+This trust root is deliberately independent of the normal Guidon endpoint/Repository/Journal transport hierarchy.
+
+Authentication to Recovery Copy export administration requires the valid separate administrator identity plus required MFA and explicit scoped authorization. A normal Guidon replication certificate is not export authority.
+
+Compromise of the normal Guidon CA should therefore not, by design, mint a certificate accepted as Recovery Copy recovery-administration authority.
 
 ## Temporary first-boot Windows recovery account
 
 Bare-metal recovery may require a one-time signed first-boot bootstrap under LocalSystem.
 
-The bootstrap is bound to the target, recovery point, allowed action, expiry, nonce, and signature. It creates a unique temporary local administrator with a random credential, releases that credential through the defined secure recovery path, and enforces TTL/watchdog cleanup.
+The bootstrap is bound to the target, recovery point, allowed action, expiry, nonce, signature, and required recovery authorization/MFA facts. It creates a unique temporary local administrator with a random credential, releases that credential through the defined secure recovery path, and enforces TTL/watchdog cleanup.
+
+Durable Recovery Jobs and temporary recovery credentials are protected according to their encryption contracts; the temporary credential is not treated as safe merely because the enclosing Job is encrypted.
 
 Final recovery validation requires verification that:
 
@@ -272,3 +377,5 @@ Certificate and signing-key rotation never rewrites historical identity.
 Guidon retains the public certificates/verification keys needed to verify old records and connections for as long as those records require verification.
 
 A known/suspected key compromise and a lost key are different conditions. Guidon records the condition actually established and does not retroactively label historical signatures beyond what can be demonstrated.
+
+Recovery Copy administration CA history and independent Journal/external-witness verification-key history follow the same principle within their own trust domains.
