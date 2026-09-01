@@ -20,6 +20,14 @@ separate protection for Journal/private-key datasets according to their authorit
 keys managed outside ordinary repository object content
 ```
 
+## Regulated storage-encryption profile boundary
+
+ZFS native encryption is an initial storage-confidentiality mechanism; Guidon does not treat the presence of AES/ZFS encryption as proof that the exact cryptographic implementation is FIPS 140-3 validated or that a deployment satisfies CJIS or another regulatory requirement.
+
+Where policy requires a validated at-rest cryptographic boundary, the exact provider/module, version, operating environment, key strength, and validation status required by the active cryptographic profile must be established independently of the Repository object's SHA-256 identity.
+
+The Repository logical format therefore remains intentionally separable from the underlying storage-encryption implementation. A future regulated appliance may replace or augment the storage-encryption boundary without rewriting Repository logical object identities, provided the recovery/key dependencies and assurance claims are explicitly defined and tested.
+
 ## Important distinction: Job/control artifacts
 
 The decision to defer **application-level encryption of Repository recovery objects** does not mean all Guidon data relies only on filesystem encryption.
@@ -123,7 +131,7 @@ Authority separation still limits unrelated signing/authorization capabilities a
 Storage-encryption key material is separate from:
 
 ```text
-Journal Ed25519 attestation key
+Journal attestation key for the active approved signature profile
 Controller Job signing key
 AD Authorization Broker signing key
 Recovery Authority key
@@ -173,7 +181,7 @@ Intended separation:
 ```text
 Primary Repository storage-encryption key
     != Recovery Copy storage-encryption key
-    != Recovery Copy administrator RSA-4096 private key
+    != Recovery Copy administrator private key for the active approved credential profile
     != Recovery Copy Job-storage KEK
 ```
 
