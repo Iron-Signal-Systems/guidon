@@ -25,8 +25,10 @@ The planning ranges below are engineering targets, not release promises. Some wo
 | 5 — Windows bare-metal DR | 10–16 weeks | Rebuild a failed Windows system, including broken-AD cases |
 | 6 — PostgreSQL | 10–14 weeks | Base/WAL PITR plus logical granular recovery |
 | 7 — Microsoft SQL Server | 10–14 weeks | Full/diff/log protection and verified PITR |
-| 8 — Guidon and repository DR | 6–10 weeks | Recover Guidon when controller/catalog/repository components fail |
-| 9 — Pilot hardening | 4–8 months | Installation, upgrades, scale, abuse testing, runbooks, pilot readiness |
+| 8 — Linux recovery | 10–16 weeks | File, volume, and supported bare-metal Linux recovery |
+| 9 — Virtualization recovery | 16–24 weeks | Recover supported Proxmox VE, VMware vSphere, and Hyper-V virtual machines |
+| 10 — Guidon and repository DR | 6–10 weeks | Recover Guidon when controller/catalog/repository components fail |
+| 11 — Pilot hardening | 4–8 months | Installation, upgrades, scale, abuse testing, runbooks, pilot readiness |
 
 A reasonable planning target is:
 
@@ -34,8 +36,9 @@ A reasonable planning target is:
 First verified Windows file recovery:          ~2–3 months
 Windows bare-metal recovery:                   ~7–11 months
 Windows + PostgreSQL + MSSQL capability:       ~12–17 months
-Controlled pilot candidate:                    ~18–24 months
-Broader external pilot readiness:              ~24–30 months
+Linux + supported virtualization capability:   ~18–27 months
+Controlled pilot candidate:                    ~24–32 months
+Broader external pilot readiness:              ~30–40 months
 ```
 
 These are cumulative engineering ranges, not contractual dates.
@@ -439,7 +442,155 @@ Guidon can perform and verify supported MSSQL full/differential/log recovery cha
 
 ---
 
-# Phase 8 — Guidon and repository DR
+# Phase 8 — Linux recovery
+
+**Target:** 10–16 weeks
+
+Add Linux as a first-class recovery platform using Linux-native interfaces and explicit supported-platform boundaries rather than treating Linux as a generic Unix variant.
+
+## Implement
+
+- supported distribution/version, architecture, filesystem, boot, partitioning, and volume-management matrix;
+- Linux-native Guidon endpoint/service path;
+- stable Guidon endpoint identity and mTLS binding;
+- file/directory protection and recovery;
+- POSIX ownership, group, mode, timestamps, and supported ACL preservation;
+- symbolic-link and hard-link handling;
+- supported extended-attribute preservation;
+- filesystem, block-device, partition, and volume-layout provenance;
+- supported LVM capture/reconstruction where applicable;
+- volume-level capture and alternate-target reconstruction;
+- boot/system metadata required for supported bare-metal recovery;
+- supported full-system/bare-metal reconstruction;
+- alternate-target recovery where defined;
+- recovery interruption/reconciliation behavior;
+- restored-content and metadata verification; and
+- system/boot validation appropriate to the supported recovery profile.
+
+Linux implementation should target Linux directly. It must not be weakened or forced through Windows/FreeBSD mechanics merely to create artificial cross-platform symmetry.
+
+## Exit gate
+
+Guidon can protect and recover files, reconstruct and verify a supported Linux volume, and rebuild a supported Linux system from committed recovery data using a documented supported-platform matrix and Linux-native recovery behavior.
+
+---
+
+# Phase 9 — Virtualization recovery
+
+**Target:** 16–24 weeks
+
+Add virtual-machine recovery for three explicitly supported virtualization platforms while keeping each platform integration native. Share Guidon recovery semantics only where the semantics are genuinely common; do not create a speculative generic hypervisor/plugin framework.
+
+Initial virtualization scope is virtual machines. Proxmox LXC/container recovery remains outside this phase.
+
+## Shared virtualization recovery contract
+
+For each supported platform, preserve and verify the applicable facts needed for:
+
+- stable platform/host/node/VM identity;
+- VM configuration and virtual-hardware provenance;
+- virtual-disk identity and ordering;
+- storage/datastore mapping;
+- virtual-network mapping;
+- snapshot/reference-point/change-tracking provenance where applicable;
+- consistency state and guest-consistency method where actually established;
+- complete VM recovery;
+- individual virtual-disk recovery;
+- recovery to the original supported location;
+- recovery to a supported alternate host/node/storage location;
+- boot verification; and
+- defined post-recovery guest/workload validation.
+
+Change-tracking state is an optimization fact, not proof that an incremental recovery chain is valid. If continuity is reset, unavailable, contradictory, or cannot be established, Guidon must not silently accept the incremental chain and may require a new full baseline.
+
+## Phase 9A — Proxmox VE
+
+Implement Proxmox VE QEMU/KVM virtual-machine protection and recovery first.
+
+### Implement
+
+- Proxmox cluster and node identity/provenance;
+- VMID plus stable Guidon VM identity;
+- QEMU VM configuration capture;
+- virtual-disk and supported storage identity;
+- virtual-network configuration/mapping;
+- snapshot/backup/change-state provenance where supported;
+- consistent VM capture using supported Proxmox/QEMU mechanisms;
+- complete VM recovery to the original supported node/storage;
+- complete VM recovery to a supported alternate node/storage;
+- individual virtual-disk recovery;
+- configuration reconstruction;
+- boot verification; and
+- post-recovery validation.
+
+Proxmox LXC containers are explicitly outside the initial Proxmox phase.
+
+### Exit gate
+
+Guidon can recover and validate a supported Proxmox VE QEMU/KVM VM, including its configuration and required virtual disks, to an original or defined alternate Proxmox recovery target.
+
+## Phase 9B — VMware vSphere
+
+Implement VMware vSphere/ESXi virtual-machine protection and recovery using supported VMware interfaces and explicit change-tracking provenance.
+
+### Implement
+
+- vCenter and ESXi host identity/provenance;
+- stable VM identity and applicable managed-object references;
+- VM hardware/configuration capture;
+- VMDK identity and ordering;
+- datastore identity/mapping;
+- virtual-network identity/mapping;
+- snapshot and Changed Block Tracking state/provenance where used;
+- explicit handling of CBT reset/discontinuity without false incremental-chain continuity;
+- consistent VM capture using supported vSphere mechanisms;
+- complete VM recovery to the original supported location;
+- complete VM recovery to a supported alternate ESXi host/cluster/datastore;
+- individual VMDK recovery;
+- configuration reconstruction;
+- boot verification; and
+- post-recovery validation.
+
+### Exit gate
+
+Guidon can recover and validate a supported VMware vSphere VM and refuses to represent an incremental chain as valid when required CBT/change-tracking continuity cannot be established.
+
+## Phase 9C — Hyper-V
+
+Implement Microsoft Hyper-V virtual-machine protection and recovery using Windows-native/supported Hyper-V interfaces.
+
+### Implement
+
+- Hyper-V host and VM identity/provenance;
+- VM generation and configuration capture;
+- VHDX identity and ordering;
+- supported storage-location mapping;
+- virtual-switch/network configuration mapping;
+- checkpoint/reference-point provenance;
+- Resilient Change Tracking state/provenance where used;
+- guest-consistency/VSS facts where actually established;
+- complete VM recovery to the original supported Hyper-V location;
+- complete VM recovery to a supported alternate Hyper-V host/storage location;
+- individual VHDX recovery;
+- configuration reconstruction;
+- boot verification; and
+- post-recovery validation.
+
+Hyper-V-specific implementation should follow the Windows-native engineering rules in `go/AGENTS.md` rather than being forced through a lowest-common-denominator virtualization abstraction.
+
+### Exit gate
+
+Guidon can recover and validate a supported Hyper-V VM, including required configuration and VHDX data, to an original or defined alternate Hyper-V recovery target.
+
+## Phase 9 exit gate
+
+Guidon can perform and verify supported full-VM and individual-virtual-disk recovery on Proxmox VE, VMware vSphere, and Hyper-V while preserving platform-native identity, consistency, change-tracking, storage, and network facts without treating configuration presence as proof of recoverability.
+
+Cross-hypervisor conversion, arbitrary P2V/V2P, Kubernetes/container recovery, and hypervisor-host bare-metal recovery are not requirements of this phase.
+
+---
+
+# Phase 10 — Guidon and repository DR
 
 **Target:** 6–10 weeks
 
@@ -477,7 +628,7 @@ Starting from intact authoritative Guidon recovery data or an independently veri
 
 ---
 
-# Phase 9 — Pilot hardening
+# Phase 11 — Pilot hardening
 
 **Target:** 4–8 months
 
@@ -579,8 +730,10 @@ The external witness is append-only at the application/protocol level: prior anc
 
 The following remain outside the current committed roadmap unless implementation or pilot evidence justifies adding them:
 
-- Kubernetes/container backup;
-- VMware/Hyper-V platform-level protection;
+- Kubernetes/container backup, including Proxmox LXC container recovery;
+- hypervisors beyond the explicitly planned Proxmox VE, VMware vSphere, and Hyper-V scope;
+- cross-hypervisor VM conversion and arbitrary P2V/V2P;
+- hypervisor-host bare-metal recovery;
 - Microsoft 365;
 - Exchange;
 - Oracle;
