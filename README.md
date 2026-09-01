@@ -70,7 +70,7 @@ The catalog is an acceleration and projection layer, not the sole authority for 
 
 ### Secure, identity-bound transport
 
-Every Guidon-controlled connection carrying data, control, authentication, journal, recovery, management, or integration traffic must be encrypted, peer-authenticated, identity-bound, fail closed, and have no plaintext fallback.
+Every Guidon-controlled connection carrying data, control, authentication, journal, recovery, management, replication, witness, or integration traffic must be encrypted, peer-authenticated, identity-bound, fail closed, and have no plaintext fallback.
 
 This applies even between Guidon Jails on the same FreeBSD host.
 
@@ -78,9 +78,11 @@ This applies even between Guidon Jails on the same FreeBSD host.
 
 Guidon jobs are typed, signed, scoped, expiring, replay-resistant operations. Guidon must not become a general-purpose remote shell, PowerShell runner, arbitrary script system, or generic remote-code-execution framework.
 
+Any complete Guidon Job that is durably queued/spooled is encrypted at rest; the exact signed Job bytes are recovered only for validation/execution. Policy-defined interactive privileged Jobs require MFA bound to the exact Job authorization.
+
 ### Separate authorities
 
-Human authorization, Windows execution identity, endpoint transport identity, Controller job signing, Journal attestation signing, AD authorization signing, and break-glass Recovery Authority are separate security concerns and must not silently collapse into one credential or key.
+Human authorization, MFA factors, Windows execution identity, endpoint transport identity, Controller job signing, Journal attestation signing, AD authorization signing, recovery-copy administration, storage-encryption authority, and break-glass Recovery Authority are separate security concerns and must not silently collapse into one credential or key.
 
 ### Failure is part of the product
 
@@ -98,16 +100,49 @@ Domain-joined Windows Server / Workstation
         | Guidon service using gMSA
         | outbound mTLS / TCP 443
         v
-FreeBSD Host
+FreeBSD Guidon Appliance
         |
         +-- Repository Jail
         |
-        +-- Journal Jail
+        +-- Journal A Jail
 ```
 
 The initial repository platform is **FreeBSD using Jails**, with ZFS used where appropriate. The repository format remains a Guidon format and must not depend on the original controller, catalog, ZFS dataset layout, or a particular storage controller in order to interpret intact recovery data.
 
+The customer operates a **Guidon appliance**; Guidon owns the supported lifecycle of the underlying FreeBSD/ZFS/Jail platform. Normal product operation must not require the customer to become a FreeBSD or ZFS administrator. Low-level OS access remains an exceptional support/break-glass maintenance boundary, and complete host-root compromise remains outside the isolation claim of Jails.
+
 The Repository owns backup/recovery meaning. The Journal is an independent witness for immutable Guidon records and does not own recovery semantics.
+
+Phase 1 intentionally remains one Repository plus one operational Journal. Later independent systems are documented now so Phase 1 does not create incompatible identities, formats, or authority assumptions.
+
+---
+
+## Mature failure-domain direction
+
+The intended mature architecture remains deliberately asymmetric rather than active-active:
+
+```text
+SYSTEM 1 — Guidon Recovery Appliance
+    Repository
+    Journal A
+
+SYSTEM 2 — Guidon Witness Appliance
+    Journal B
+
+SYSTEM 3 — External Witness
+    isolated COW / write-once / always-advancing checkpoint anchor
+
+SYSTEM 4 — Recovery Copy Appliance
+    push-only receive path from authorized Guidon
+    independent recovery storage
+    separate recovery-administration/export trust root
+```
+
+Journal A and Journal B are independent witnesses with independent signing keys and local stream histories; they are not cloned Jails sharing one private key. A future normal policy may permit 1-of-2 operational Journal gating while explicitly reporting degraded witness redundancy, with stronger witness requirements available for selected trust changes.
+
+The External Witness is not another operational Journal. It asynchronously anchors sealed Journal checkpoint history outside the normal Guidon operational trust/failure domain. Its application state is write-once and always advancing. Copy-on-write storage supports that model but is not claimed to be hardware WORM or protection from malicious root on the witness host.
+
+The Recovery Copy appliance is not a second active Repository. The primary Guidon may push allowed immutable recovery artifacts to it, but normal replication credentials do not receive read/delete/modify/export authority. Disaster access uses a separate recovery-administration trust root, intended RSA-4096 administrator identities, MFA, and explicit scoped export into a clean Guidon recovery/import path.
 
 ---
 
@@ -117,7 +152,9 @@ For domain-joined Windows systems, normal Guidon backup services use a **Group M
 
 Endpoint transport identity is separate from the gMSA. Each protected endpoint has a stable Guidon endpoint UUID and renewable certificate credentials bound to that identity.
 
-Bare-metal recovery must not depend on working AD trust, a known restored local Administrator password, an immediately usable gMSA, secure-channel repair, or a historic LAPS password. A controlled one-time first-boot recovery bootstrap may create a unique temporary local administrator only under signed recovery authorization, with expiry, replay protection, watchdog cleanup, account removal, and verified bootstrap disarm before final recovery validation.
+Manual privileged operations use exact-Job-bound authorization and policy-defined MFA. Initial MFA uses a 30-second TOTP profile; OTP values are never durably stored. Scheduled/system work truthfully records no interactive user presence rather than fabricating an MFA event.
+
+Bare-metal recovery must not depend on working AD trust, a known restored local Administrator password, an immediately usable gMSA, secure-channel repair, or a historic LAPS password. A controlled one-time first-boot recovery bootstrap may create a unique temporary local administrator only under signed recovery authorization, independent recovery MFA where required, expiry, replay protection, watchdog cleanup, account removal, and verified bootstrap disarm before final recovery validation.
 
 ---
 
@@ -143,6 +180,8 @@ The Journal independently receives exact Record v1 bytes, calculates SHA-256, as
 
 Recovery-point publication, destructive actions, trust changes, break-glass authorization, and other defined high-impact boundaries are synchronously Journal-gated. High-volume observations and already-occurred facts may be durably recorded locally and asynchronously attested.
 
+Future independent Journal witnesses correlate the same authoritative fact through `record_id` plus exact `record_sha256`; they do not require identical Journal sequence numbers or segment boundaries.
+
 ---
 
 ## Storage failure and reverification
@@ -160,12 +199,15 @@ Guidon re-hashes retained unique objects, verifies manifests and references, ver
 The engineering contracts and architecture decisions currently frozen for implementation are maintained under [`docs/`](docs/README.md), including:
 
 - repository objects, manifests, recovery points, durability, crash reconciliation, and post-failure reverification;
-- Journal streams, receipts, checkpoints, key separation, and synchronous/asynchronous attestation;
-- endpoint, user, gMSA, PKI, AD authorization, and break-glass identity boundaries;
+- Journal streams, receipts, checkpoints, key separation, synchronous/asynchronous attestation, and future multi-witness direction;
+- External Witness write-once/always-advancing checkpoint anchoring and root/rollback limitations;
+- Recovery Copy push-only replication, independent verification, separate recovery-administration PKI/MFA, and clean-appliance export/import;
+- endpoint, user, gMSA, PKI, AD authorization, MFA, and break-glass identity boundaries;
+- encrypted-at-rest durable Job/control artifacts and key separation;
 - network security and PCAP/Wireshark acceptance requirements;
-- FreeBSD Jail responsibility and privilege boundaries;
+- FreeBSD appliance/Jail responsibility and privilege boundaries;
 - Record v1, Job v1, verification-state, retention/deletion, time, and configuration provenance contracts; and
-- the initial Guidon threat model.
+- the Guidon threat model.
 
 ---
 
@@ -185,7 +227,8 @@ Guidon is not currently intended to:
 - provide arbitrary remote administration;
 - hide unsupported or unverified conditions behind a green status;
 - require broadly privileged domain identities everywhere;
-- make recovery dependent on an opaque controller database; or
+- make recovery dependent on an opaque controller database;
+- require active-active Repository/distributed-consensus architecture merely for redundancy; or
 - add complexity merely to make the product appear sophisticated.
 
 A smaller supported surface that can be trusted is preferable to broad nominal support that cannot be confidently recovered.
@@ -208,11 +251,13 @@ Guidon succeeds when an administrator can answer, from explicit records and veri
 
 > What identity actually performed it?
 
-> What certificates, systems, and authorization sources participated?
+> What certificates, systems, factors, and authorization sources participated?
 
 > What happened during recovery?
 
 > Was the recovered result actually validated?
+
+> Is my independent Journal/recovery-copy protection currently complete or degraded?
 
 And when the primary environment itself has failed:
 
