@@ -112,6 +112,14 @@ Algorithm substitution is prohibited. A verifier does not infer the algorithm fr
 
 A future algorithm requires a new explicitly permitted purpose/profile version or contract amendment with migration rules.
 
+## Relationship to cryptographic deployment profiles
+
+Signature v1 intentionally remains strict: the initial v1 purposes require `algorithm = ed25519`, and a verifier never substitutes another algorithm because a deployment profile or library supports it.
+
+`../architecture/CRYPTOGRAPHIC-ARCHITECTURE.md` governs the higher-level migration model. A regulated deployment profile may declare a Signature v1 operation unavailable if the required algorithm cannot be executed through an implementation/provider that satisfies that deployment's cryptographic requirements. The operation fails closed rather than silently changing algorithms.
+
+A future approved classical, hybrid, or post-quantum signature uses an explicitly versioned signature/profile/contract transition with its own encoding, key identity, verification, and migration rules. Historical Signature v1 artifacts remain associated with Ed25519 and their original key generations and are not rewritten merely because the active profile changes.
+
 ## Signing key identity
 
 For Ed25519 v1:
