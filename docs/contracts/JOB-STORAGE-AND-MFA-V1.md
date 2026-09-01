@@ -121,6 +121,14 @@ A nonce must never repeat for the same AES-GCM key. Nonces are generated using a
 
 The authenticated data binds at least the fixed envelope schema/version and the non-secret locator metadata required by the implementation so those fields cannot be silently substituted independently of the ciphertext.
 
+## Relationship to cryptographic deployment profiles
+
+Encrypted Job Envelope v1 intentionally remains strict: `encryption_algorithm = aes-256-gcm`. A verifier/decryptor does not substitute another AEAD because a library or deployment profile supports it.
+
+Where the active deployment profile requires a validated cryptographic implementation, AES-256-GCM and the applicable DEK/KEK cryptographic operations must execute through a provider/module allowed by that profile. A requested/configured FIPS mode is not treated as proof that the required validated module is actually active. If the required provider/profile cannot be established, durable Job encryption/decryption operations requiring that profile fail closed.
+
+A future encryption algorithm requires an explicitly versioned encrypted-envelope/profile transition with defined migration/recovery behavior; it does not silently change Encrypted Job Envelope v1.
+
 ## DEK protection
 
 The per-Job DEK is not stored in plaintext beside the ciphertext.
@@ -337,6 +345,8 @@ TOTP step-up factor
 +
 explicit scoped export Job/request
 ```
+
+RSA-4096 is the initial classical Recovery Copy administration credential profile, not a permanent cryptographic algorithm invariant. Future approved credential profiles may replace or augment it under `../architecture/CRYPTOGRAPHIC-ARCHITECTURE.md` while preserving the separate trust root, independently classified MFA factors, exact authorization scope, and historical credential provenance.
 
 Normal Guidon endpoint/Repository/Journal credentials do not satisfy this administrative trust boundary.
 
