@@ -10,18 +10,22 @@ The Repository does not possess the Journal signing private key. The Journal doe
 
 ## Submission contract
 
-The Repository or another authorized producer submits the **exact finalized Record v1 bytes** to the Journal.
+For normal Guidon operational history, the Repository submits the **exact finalized authoritative Record v1 bytes** created under `AUTHORITATIVE-RECORD-FINALIZATION-V1.md`.
+
+Other Guidon components may produce source observations/event material for Repository finalization, but they do not bypass the authoritative Repository finalization boundary merely because they can reach the Journal.
+
+Journal-internal system records are the exception: they are finalized within the Journal's own authoritative system-record boundary and remain in the dedicated Journal system stream.
 
 The Journal independently:
 
-1. authenticates the producer;
-2. validates the common Record v1 envelope needed for Journal operation;
+1. authenticates the authorized Repository producer identity or the defined Journal-internal producer boundary;
+2. validates the common Record v1 envelope needed for Journal operation using the strict exact-byte parser profile;
 3. calculates SHA-256 over the exact submitted bytes;
 4. checks Record ID idempotency/conflict rules;
 5. assigns Journal stream/sequence/entry identity;
 6. durably appends the entry;
 7. produces a signed receipt after the required Journal durability boundary; and
-8. returns that receipt to the producer.
+8. returns that receipt to the Repository for externally submitted records.
 
 The Journal never trusts a producer-supplied record hash without independently calculating it.
 
@@ -122,11 +126,11 @@ signing_key_id
 
 The first checkpoint uses `previous_checkpoint_sha256 = not_applicable`.
 
-The exact checkpoint bytes are signed with the Journal Ed25519 attestation key using a detached signature:
+The exact checkpoint bytes are signed using Signature v1 with:
 
 ```text
-checkpoint.json
-checkpoint.sig
+purpose = GUIDON:JOURNAL-CHECKPOINT:V1
+algorithm = ed25519
 ```
 
 The previous checkpoint's exact-byte SHA-256 links sealed segments within the stream.
@@ -149,7 +153,12 @@ journal_instance_id
 signing_key_id
 ```
 
-The receipt is exact-byte signed with a detached Ed25519 signature.
+The exact receipt bytes are signed using Signature v1 with:
+
+```text
+purpose = GUIDON:JOURNAL-RECEIPT:V1
+algorithm = ed25519
+```
 
 A receipt does not claim a segment checkpoint already exists. An entry may be durable in an active segment while the covering checkpoint is `not_yet_created`.
 
@@ -176,7 +185,7 @@ receive exact record
     -> append
     -> synchronous durability boundary
     -> advance durable stream state
-    -> sign required receipt/checkpoint material
+    -> sign required receipt/checkpoint material using Signature v1
     -> durably preserve required signing/output state
     -> return receipt
 ```
@@ -195,13 +204,19 @@ Journal gaps, sequence conflicts, hash-chain failures, and checkpoint mismatches
 
 ## Journal signing
 
-Record/object integrity uses SHA-256. Journal receipt/checkpoint attestation uses Ed25519.
+Record/object integrity uses SHA-256. Journal receipt/checkpoint/key-transition attestation uses Ed25519 under `SIGNATURE-V1.md`.
 
-`signing_key_id` is derived from the exact Ed25519 public key bytes, conceptually as SHA-256 of those bytes.
+For Ed25519:
+
+```text
+signing_key_id = sha256:<lowercase SHA-256 of exact raw 32-byte public key>
+```
 
 Public verification keys must be retained with recoverable Journal history for as long as the records need verification.
 
-The Journal private key remains inside the Journal signing boundary. The normal architecture does not expose a generic `Sign([]byte)` oracle. Signing operations are constrained to defined Journal semantics such as:
+In addition, `REPOSITORY-FORMAT-V1.md` requires the Repository to retain the exact public verification material needed to verify every Journal key generation referenced by a committed recovery point. The Journal private key is never copied into the Repository by that rule.
+
+The Journal private key remains inside the Journal signing boundary. The normal architecture does not expose a generic signing oracle. Signing operations are constrained to defined Journal semantics such as:
 
 ```text
 SignJournalReceipt
@@ -217,7 +232,7 @@ Normal signing-key rotation:
 
 1. stops/seals active segments under the old key;
 2. creates final old-key checkpoints;
-3. records/attests a transition between key generations;
+3. records/attests a transition between key generations using `GUIDON:JOURNAL-KEY-TRANSITION:V1`;
 4. cryptographically links old/new generations, ideally with a transition attested by both where available; and
 5. begins new segments/checkpoints under the new key.
 
@@ -245,9 +260,9 @@ storage low/exhausted
 write/durability failure
 ```
 
-Journal internal records use a dedicated Journal system stream and the same integrity/segment/checkpoint principles. The Journal does not need to send those records through its own network API.
+Journal internal records use a dedicated Journal system stream and the same integrity/segment/checkpoint principles. The Journal does not need to send those records through its own network API or through the Repository merely to manufacture Repository provenance.
 
-External producers cannot choose arbitrary Journal system streams or set their own sequence numbers.
+External callers cannot choose arbitrary Journal system streams or set their own sequence numbers.
 
 ## Narrow API
 
@@ -263,7 +278,7 @@ Execute
 
 ## Synchronous gating versus durable asynchronous attestation
 
-Every authoritative Record v1 is expected to become Journal-attested. The distinction is whether the associated action may proceed before the attestation exists.
+Every normal authoritative Record v1 is expected to become Journal-attested. The distinction is whether the associated action may proceed before the attestation exists.
 
 ### `GATED`
 
@@ -311,6 +326,6 @@ Guidon never discards older unjournaled records to make room for newer ones. If 
 
 ## Availability behavior
 
-A temporary Journal outage may allow normal backup ingest to continue through durable object/manifests/records, but a recovery point cannot cross the Journal-gated commit boundary until the required attestation exists.
+A temporary Journal outage may allow normal backup ingest to continue through durable objects/manifests/authoritative records, but a recovery point cannot cross the Journal-gated commit boundary until the required attestation exists.
 
 The Journal backlog must be operationally visible, including at least the number of pending attestations, oldest pending time, and any gated operations blocked by Journal unavailability.
