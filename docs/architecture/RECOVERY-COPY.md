@@ -202,6 +202,8 @@ Recovery Copy Administration Intermediate CA
 RSA-4096 Recovery Copy administrator certificate
 ```
 
+The Recovery Copy administration algorithm is profile-versioned. RSA-4096 is the initial classical direction; it is not a permanent algorithm invariant. A future approved classical, hybrid, or post-quantum administrative credential profile must preserve the separate Recovery Copy trust root, explicit factor semantics, exact authorization scope, and historical verification/provenance requirements.
+
 The exact CA deployment/rotation profile is frozen before Recovery Copy implementation ships.
 
 The root private key should normally remain offline. The administrative certificate is not an ordinary Guidon endpoint or Repository certificate.
