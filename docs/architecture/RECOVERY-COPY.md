@@ -221,17 +221,24 @@ Journal signing key
 
 ## Recovery Copy MFA
 
-Recovery Copy export administration requires the separate recovery identity plus policy-defined MFA under `JOB-STORAGE-AND-MFA-V1.md`.
+Recovery Copy export administration requires the separate recovery identity plus policy-defined MFA under `../contracts/JOB-STORAGE-AND-MFA-V1.md`.
 
-Initial direction:
+The RSA-4096 administrator certificate establishes the separate Recovery Copy administrative credential/trust domain. It is not by itself counted as a different MFA factor category from TOTP merely because both credentials are present.
+
+The intended authorization path is:
 
 ```text
 valid RSA-4096 Recovery Copy administrator identity
 +
-TOTP MFA (30-second v1 step)
+independent administrator authentication/unlock factor
+    (for example a PIN/passphrase or equivalent independently classified factor)
++
+TOTP step-up factor (30-second v1 step)
 +
 explicit scoped recovery/export authorization
 ```
+
+If the RSA private key is hardware-backed and PIN-protected, the implementation records the actual factors it established and does not overstate their classification.
 
 The OTP itself is never stored.
 
@@ -263,7 +270,7 @@ The intended disaster-recovery path is:
 
 ```text
 primary Guidon unavailable/destroyed
-    -> administrator authenticates to Recovery Copy under separate trust root + MFA
+    -> administrator authenticates to Recovery Copy under separate trust root + required MFA
     -> select required recovery point(s)
     -> Recovery Copy creates a defined export package
     -> administrator downloads/transfers export
@@ -304,7 +311,7 @@ Its storage-encryption keys are separate from the primary Repository storage-enc
 
 Guidon does not assume that copying ciphertext from one ZFS-encrypted dataset automatically provides the intended confidentiality on another host; the Recovery Copy establishes its own storage-at-rest protection.
 
-Durably stored Recovery Copy Jobs/export authorizations follow `JOB-STORAGE-AND-MFA-V1.md` and are application-encrypted in addition to any filesystem/storage encryption.
+Durably stored Recovery Copy Jobs/export authorizations follow `../contracts/JOB-STORAGE-AND-MFA-V1.md` and are application-encrypted in addition to any filesystem/storage encryption.
 
 ## Root compromise boundary
 
@@ -349,7 +356,8 @@ At minimum:
 - Recovery Copy independently detects a wrong declared SHA-256;
 - Recovery Copy storage loss/partial write does not generate a false verified receipt;
 - normal Guidon PKI credential cannot authenticate to recovery-export administration;
-- valid separate RSA-4096 recovery administrator certificate plus required TOTP can authorize a scoped export;
+- valid separate RSA-4096 recovery administrator certificate plus the required independent authentication factor and TOTP can authorize a scoped export;
+- certificate + TOTP alone is not mislabeled MFA if the implementation has not established independent factor categories;
 - missing/invalid/replayed MFA fails closed;
 - production AD unavailable does not prevent the independent recovery-authentication path;
 - exported package imported into a clean Guidon is independently verified before recovery use;
