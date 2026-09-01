@@ -206,6 +206,8 @@ Journal gaps, sequence conflicts, hash-chain failures, and checkpoint mismatches
 
 Record/object integrity uses SHA-256. Journal receipt/checkpoint/key-transition attestation uses Ed25519 under `SIGNATURE-V1.md`.
 
+Ed25519 is the strict Signature v1 Journal-attestation algorithm, not a permanent architecture-wide algorithm invariant. Future approved classical, hybrid, or post-quantum Journal signature profiles require an explicitly versioned Signature/profile transition under `CRYPTOGRAPHIC-ARCHITECTURE.md`. Historical Journal receipts/checkpoints remain bound to their original Signature v1 algorithm and key generations and are not rewritten during migration.
+
 For Ed25519:
 
 ```text
