@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guidon recovery data must remain interpretable when the original Controller, catalog, database, host, or ZFS dataset layout is unavailable. This contract defines the minimum self-describing bootstrap information and verification-key portability required for Repository Format v1.
+Guidon recovery data must remain interpretable when the original Controller, catalog, database, host, or ZFS dataset layout is unavailable. This contract defines the self-describing bootstrap, minimum authoritative layout, and Journal verification-key portability required for Repository Format v1.
 
 ## Governing rule
 
@@ -10,11 +10,30 @@ Guidon recovery data must remain interpretable when the original Controller, cat
 
 The repository format may use ZFS for storage, but recovery meaning does not depend on one ZFS dataset name, pool name, controller database, or historic application host.
 
+## Repository root
+
+Repository Format v1 has one logical repository root. Mount point, ZFS pool name, dataset name, host, and Jail name are deployment details and are not repository identity.
+
+Within the logical repository root, these v1 bootstrap/authority locations are frozen:
+
+```text
+/guidon-repository.json
+/guidon-repository.sha256
+/objects/sha256/<first2>/<next2>/<full_digest>
+/manifests/<recovery_point_id>/manifest.json
+/manifests/<recovery_point_id>/manifest.sha256
+/recovery-points/<recovery_point_id>/commit.json
+/records/<implementation-bounded-layout>
+/journal-receipts/<implementation-bounded-layout>
+/journal-verification-keys/<signing_key_id>.pub
+/journal-verification-keys/<signing_key_id>.json
+```
+
+`records` and `journal-receipts` may use bounded subdirectories/segments for scale, but their reader must be deterministic from Repository Format v1 metadata and may not require the catalog to discover authoritative content.
+
 ## Repository format descriptor
 
-Every initialized Guidon repository contains one durable, immutable bootstrap descriptor for its format generation.
-
-Conceptually:
+`/guidon-repository.json` is an immutable Exact-Byte Encoding v1 document containing at least:
 
 ```text
 schema = guidon.repository-format
@@ -27,23 +46,17 @@ manifest_integrity_algorithm = sha256
 record_integrity_algorithm = sha256
 ```
 
-The descriptor uses Exact-Byte Encoding v1.
-
-A repository implementation may store additional non-secret format metadata, but the descriptor cannot depend on the catalog to be found or interpreted.
-
-## Stable discovery
-
-The v1 implementation must provide one documented deterministic bootstrap location or discovery rule for the format descriptor.
-
-The exact filesystem path is an implementation choice frozen before Phase 1 release, but it must remain discoverable from the repository root without database lookup.
-
-A reasonable v1 direction is conceptually:
+`/guidon-repository.sha256` contains exactly:
 
 ```text
-/repository-format-v1.json
+sha256:<64 lowercase hexadecimal characters>\n
 ```
 
-The implementation must not scan arbitrary customer object bytes and guess that a repository exists.
+where the digest is SHA-256 over the exact bytes of `/guidon-repository.json`.
+
+The companion digest detects descriptor corruption/change but is not by itself a cryptographic trust anchor against an attacker able to replace both files. Historical Repository/Journal records and configured trust policy provide the applicable provenance/trust context.
+
+Guidon must not claim otherwise.
 
 ## Repository identity
 
@@ -61,32 +74,92 @@ A deliberately new repository initialization receives a new identity.
 
 ## Format compatibility
 
-Repository software must inspect the format descriptor before modifying repository state.
-
-Behavior is fail closed:
+Repository software inspects and verifies the format descriptor before modifying repository state.
 
 ```text
 supported exact format
-    -> may proceed according to implementation compatibility rules
+    -> may proceed according to v1 rules
 
 newer/unknown format
-    -> read/write operations that could mutate state are refused
+    -> mutation refused
 
-malformed descriptor
-    -> integrity/format condition surfaced; do not initialize over it
+malformed descriptor or digest mismatch
+    -> integrity/format condition surfaced; mutation refused
 ```
 
-Guidon must never overwrite an unknown repository with a fresh v1 descriptor merely because the catalog is absent.
+Guidon must never initialize over unknown or damaged repository bytes merely because the catalog is absent.
+
+## Immutable object layout
+
+Objects are exact immutable bytes identified by:
+
+```text
+sha256:<lowercase hex>
+```
+
+The final object path is:
+
+```text
+/objects/sha256/<first2>/<next2>/<full_digest>
+```
+
+where `<first2>` and `<next2>` are the first four lowercase hexadecimal digest characters split into two two-character directories and `<full_digest>` is the complete 64-character lowercase SHA-256 digest without the `sha256:` prefix.
+
+Path identity never substitutes for hashing the exact object bytes.
+
+Temporary incoming objects are outside the final immutable namespace and must be placed on a filesystem/dataset boundary that supports the Repository publication contract.
+
+## Manifest layout
+
+For each recovery point:
+
+```text
+/manifests/<recovery_point_id>/manifest.json
+/manifests/<recovery_point_id>/manifest.sha256
+```
+
+`manifest.json` is the exact immutable versioned manifest.
+
+`manifest.sha256` contains exactly:
+
+```text
+sha256:<64 lowercase hexadecimal characters>\n
+```
+
+for the exact manifest bytes.
+
+## Recovery-point publication artifact
+
+For each committed recovery point:
+
+```text
+/recovery-points/<recovery_point_id>/commit.json
+```
+
+`commit.json` is the immutable publication artifact defined by `RECOVERY-POINT-COMMIT-V1.md` and binds at least:
+
+```text
+schema/schema_version
+recovery_point_id
+manifest_sha256
+preparation_record_id
+preparation_record_sha256
+Journal receipt reference/identity
+published_at
+repository_instance_id
+```
+
+Existence of the directory alone is not commitment. `commit.json` must parse and verify against all required authoritative artifacts.
 
 ## Minimum portable authority
 
-Repository Format v1 preserves enough immutable/durable information to reconstruct supported recovery meaning from:
+Repository Format v1 preserves enough information to reconstruct supported recovery meaning from:
 
 ```text
-format descriptor
+format descriptor + digest
 immutable objects
-immutable manifests
-recovery-point publication artifacts
+immutable manifests + digests
+recovery-point commit artifacts
 Repository authoritative Record v1 history
 Journal receipts required by committed recovery points
 Journal public verification-key history needed to verify those receipts
@@ -96,95 +169,90 @@ Derived catalog/index data is not part of the minimum authority.
 
 ## Journal verification-key portability
 
-Journal private signing keys remain inside the Journal signing boundary and are not copied into the Repository.
+Journal private signing keys remain inside the Journal signing boundary and are never copied into the Repository by this contract.
 
-Journal public verification material is not secret and MUST be preserved with Repository recovery metadata whenever a committed recovery point depends on a Journal signature created by that key generation.
-
-The Repository retains, for every referenced Journal `signing_key_id`, the exact verification material needed for offline/historical verification.
-
-For Ed25519 v1 this includes at minimum:
+For every Journal `signing_key_id` referenced by a committed recovery point, the Repository MUST retain:
 
 ```text
-signing_key_id
-exact raw 32-byte public key or a lossless encoded representation
-algorithm = ed25519
-first_observed/accepted generation facts
-key-transition/authorization references where applicable
+/journal-verification-keys/<signing_key_id>.pub
+/journal-verification-keys/<signing_key_id>.json
 ```
 
-The Repository independently recalculates:
+For Ed25519 v1:
+
+- `.pub` contains exactly the raw 32-byte Ed25519 public key;
+- `.json` is an Exact-Byte Encoding v1 metadata document containing at least `signing_key_id`, `algorithm = ed25519`, first-observed/accepted generation facts, and trust/key-transition references where applicable.
+
+The Repository independently calculates:
 
 ```text
-signing_key_id = sha256:<SHA-256 of exact raw public-key bytes>
+signing_key_id = sha256:<lowercase SHA-256 of exact raw 32-byte public key>
 ```
 
-and refuses a mismatching key file/material.
+A mismatch is an integrity condition.
 
 ## Public-key history is not trust policy by itself
 
-Possessing a public key proves only that signatures can be mathematically checked.
+Possessing a public key permits mathematical signature verification. It does not by itself prove that the key was an authorized Journal authority at the relevant time.
 
-Historical trust/authorization for that key generation must also be established from Guidon's durable trust-transition/configuration history.
+Historical authorization/trust must also be established from durable trust-transition/configuration history.
 
-The Repository therefore does not treat an arbitrary public key dropped into the verification-key directory as an authorized historic Journal key.
+An arbitrary public key copied into `journal-verification-keys` does not become trusted merely because its self-derived key ID is internally consistent.
 
 ## Recovery after Journal loss
 
-If Journal service/storage is unavailable but Repository recovery data and required historical Journal public verification material survive, Guidon may verify historical Journal receipts/checkpoints within the surviving trust history.
+If Journal service/storage is unavailable but Repository recovery data and required historical public verification material survive, Guidon may verify historical Journal signatures within surviving trust history.
 
-It must accurately report the distinction between:
+It reports separately:
 
 ```text
-historical signature verifies
-current Journal service unavailable
-current Journal continuity not established
+historical signature verification result
+current Journal service availability
+current Journal continuity/checkpoint state
 ```
 
 Historical verification capability does not manufacture a replacement Journal signing authority.
 
-## Layout independence
-
-The physical layout beneath the repository root may evolve if the v1 format reader can deterministically discover the authoritative artifacts required by the version contract.
-
-Object filenames/directories remain an implementation namespace for immutable SHA-256 objects; path alone is never proof of object integrity.
-
-## Bootstrap integrity
-
-The repository format descriptor is exact-byte SHA-256 protected as part of Repository authority. A future detached signature may be used according to Signature v1, but Format v1 does not require possession of an online repository-format signing private key for normal operation.
-
-The implementation must define how the descriptor's expected hash is durably anchored within the repository bootstrap metadata without creating a circular dependency.
-
-At minimum, startup/import performs an explicit integrity observation and records the exact bytes/hash it found.
-
 ## Import/rebuild behavior
 
-A future Guidon installation rebuilding around intact repository data performs, conceptually:
+A future Guidon installation rebuilding around intact Repository Format v1 data performs, conceptually:
 
 ```text
-locate repository root
-    -> read/validate format descriptor
+locate logical repository root
+    -> verify guidon-repository.json + companion digest
     -> identify repository_id/format
-    -> enumerate immutable recovery-point publication artifacts
-    -> verify manifests
-    -> verify referenced objects
-    -> load/validate required Journal public verification-key history
+    -> enumerate recovery-point commit artifacts
+    -> verify manifests/digests
+    -> verify referenced objects by SHA-256
+    -> load/validate referenced Journal public verification material
     -> verify required Journal receipts/signatures
+    -> verify authoritative Record history as defined
     -> rebuild derived catalog/index
-    -> record all mismatches/gaps/unavailable conditions
+    -> record mismatches/gaps/unavailable conditions
 ```
 
-The catalog is rebuilt from authority; authority is not rewritten to match the catalog.
+Authority is never rewritten to agree with a derived catalog.
+
+## At-rest encryption interaction
+
+Repository Format v1 object identity is SHA-256 of the exact logical recovery bytes stored by Guidon before any storage-layer encryption performed transparently by ZFS.
+
+Storage-layer encryption does not change object IDs, manifests, or repository-format identities because encryption/decryption occurs below the Guidon file/object format boundary.
+
+Application-level per-object encryption is not part of Repository Format v1.
 
 ## Acceptance tests
 
-Before Phase 8 is considered complete, test at minimum:
+Test at minimum:
 
 - original Controller/catalog destroyed;
-- Repository mounted at a different path/host;
+- repository mounted at a different host/mount point;
 - ZFS pool renamed/imported;
-- Journal service unavailable but required historical public keys retained;
+- Journal unavailable but required historical public keys retained;
 - unknown/newer repository format;
-- malformed format descriptor;
-- missing Journal public key for an otherwise present receipt;
-- public-key bytes whose calculated ID does not match stored `signing_key_id`; and
+- malformed descriptor;
+- descriptor digest mismatch;
+- missing Journal public key for a referenced receipt;
+- public-key bytes whose calculated ID mismatches metadata/path;
+- missing/invalid recovery-point `commit.json`; and
 - catalog rebuilt solely from intact Repository Format v1 authority.
