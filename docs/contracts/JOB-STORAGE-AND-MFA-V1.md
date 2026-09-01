@@ -196,6 +196,20 @@ retention/destruction policy change
 
 Scheduled backups and other explicitly policy-authorized unattended operations use truthful `user.presence = not_present` attribution and do not manufacture an interactive MFA event.
 
+## MFA factor independence
+
+Guidon uses the term **MFA** only when the authorization path establishes factors from independent authentication categories according to the deployed policy.
+
+A client certificate/private key and a TOTP token can both be possession factors. Their mere combination is therefore not automatically described as multi-factor authentication.
+
+Guidon's initial normal interactive model is expected to use a human authentication factor such as a password/PIN/passphrase or equivalent user-authentication proof plus the independent TOTP factor.
+
+For Recovery Copy administration, the RSA-4096 certificate establishes the separate recovery administrative trust domain. The administrative login/unlock path must also include a knowledge/biometric or otherwise independently classified factor as defined by the implementation policy, with TOTP used as the OTP/step-up factor for protected export operations.
+
+If the RSA private key is hardware-protected and requires a PIN, the implementation must state exactly which factors it counts and why rather than simply labeling `certificate + TOTP` as MFA.
+
+Guidon records the factor methods/results it actually established and does not turn possession of multiple credentials from the same factor category into a stronger claim than warranted.
+
 ## TOTP v1
 
 Initial Guidon interactive OTP uses RFC 6238-style time-based one-time passwords (`TOTP`).
@@ -293,11 +307,13 @@ Guidon distinguishes:
 ```text
 Normal interactive authorization
     user identity/authentication
+    + independent human authentication factor
     + normal Guidon/AD authorization path
-    + TOTP where policy requires
+    + TOTP factor where policy requires
 
 Recovery / break-glass authorization
     Recovery Authority identity
+    + independently classified human authentication factor
     + independent recovery MFA/TOTP verification
     + exact Recovery Job binding
 ```
@@ -315,14 +331,16 @@ Recovery Copy administrator certificate
     RSA-4096
     chains to separate Recovery Copy trust root
 +
-TOTP MFA
+independent administrator login/unlock factor
++
+TOTP step-up factor
 +
 explicit scoped export Job/request
 ```
 
 Normal Guidon endpoint/Repository/Journal credentials do not satisfy this administrative trust boundary.
 
-Possession of the RSA-4096 certificate is authentication to the separate recovery domain; export authorization remains separately evaluated and recorded.
+Possession of the RSA-4096 certificate authenticates the separate recovery-domain credential relationship; export authorization remains separately evaluated, MFA-protected according to the factor policy, and recorded.
 
 ## Fail-closed behavior
 
@@ -333,6 +351,7 @@ wrong OTP
 expired/out-of-window OTP
 replayed/consumed TOTP time step
 unknown/disabled token
+missing required independent authentication factor
 MFA verifier unavailable
 required verifier clock state not trustworthy enough for configured policy
 missing MFA assertion
@@ -354,10 +373,11 @@ At minimum test:
 - successful decrypt reproduces byte-for-byte the signed Job that was originally stored;
 - plaintext Job is not written to application temp files/logs/support bundles;
 - normal automated job records `user.presence = not_present` and does not fabricate MFA;
-- valid TOTP authorizes the intended exact Job;
+- valid TOTP plus the required independent factor authorizes the intended exact Job;
 - same TOTP/time step replayed for another Job is rejected;
 - valid TOTP followed by any Job-byte modification invalidates authorization binding;
 - previous/next time-step behavior matches the configured skew policy;
 - OTP value and TOTP secret never appear in Record v1/Journal output;
-- MFA verifier outage fails closed for required operations; and
+- MFA verifier outage fails closed for required operations;
+- Recovery Copy does not count certificate + TOTP as different factor categories unless the implemented authentication mechanism actually establishes independent categories; and
 - recovery MFA remains usable when production AD is unavailable.
