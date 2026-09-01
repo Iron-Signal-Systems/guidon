@@ -109,7 +109,7 @@ repository readable / not_readable
 
 ## Integrity remains separate from confidentiality
 
-ZFS encryption and authentication do not replace Guidon exact-byte SHA-256 object/manfiest/record verification.
+ZFS encryption and authentication do not replace Guidon exact-byte SHA-256 object/manifest/record verification.
 
 Likewise, SHA-256 integrity does not provide confidentiality.
 
