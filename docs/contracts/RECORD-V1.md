@@ -18,6 +18,16 @@ Records are distinct from debug/application logs. They preserve operationally me
 - A state transition that requires a durable record is not complete until the required Record v1 bytes cross the defined durability boundary.
 - A conclusion-like verification result must preserve the actual factual basis: method, expected value, observed value, and comparison/result.
 
+## Authoritative finalization
+
+Authoritative Record v1 bytes are finalized according to `AUTHORITATIVE-RECORD-FINALIZATION-V1.md`.
+
+For normal Guidon operational records, the Repository authoritative-record boundary adds the required ISS-system clock observation and other Repository-side authoritative provenance **before** the final byte sequence is frozen, hashed, durably stored, and submitted to the Journal.
+
+Producer-created observations or source artifacts are not silently treated as already-finalized authoritative Record v1 bytes. Where exact producer bytes must be preserved, they remain a separately identified source artifact referenced by the authoritative record.
+
+After finalization, the Record v1 byte sequence is immutable.
+
 ## Identity and integrity
 
 Every record has:
@@ -35,6 +45,8 @@ Do **not** embed `record_sha256` inside the exact bytes being hashed; that creat
 
 `record_id` is the semantic record identity. The externally calculated SHA-256 is the exact-byte integrity/attestation value.
 
+Record v1 exact-byte encoding/parsing follows `EXACT-BYTE-ENCODING-V1.md`.
+
 ## Record type
 
 Use explicit controlled names, not multiple synonyms for the same event.
@@ -45,7 +57,7 @@ Examples include:
 OBJECT_RECEIVED
 OBJECT_STORED
 OBJECT_INTEGRITY_CHECKED
-OBJECT_COMMITTED
+OBJECT_PUBLISHED
 RECOVERY_POINT_PREPARED
 RECOVERY_POINT_COMMITTED
 AUTHORIZATION_CHECKED
@@ -53,6 +65,8 @@ JOURNAL_GAP_DETECTED
 REPOSITORY_RECONCILIATION_STARTED
 REPOSITORY_RECONCILIATION_COMPLETED
 ```
+
+`OBJECT_PUBLISHED` is deliberately distinct from `RECOVERY_POINT_COMMITTED`. Object publication places one verified durable object into the immutable SHA-256 namespace; `COMMITTED` is a recovery-point lifecycle state defined by the Recovery Point Commit v1 contract.
 
 Exact vocabulary evolves deliberately through the contract; implementations should not invent near-duplicate names casually.
 
@@ -66,6 +80,8 @@ recorded_at
 ```
 
 and the time provenance defined in `TIME-AND-CONFIGURATION-PROVENANCE.md`.
+
+The required Repository-side `iss_system_clock` observation is inserted before authoritative Record v1 finalization according to `AUTHORITATIVE-RECORD-FINALIZATION-V1.md`.
 
 When Journal-attested, Journal receipt/entry time remains separate from producer/Repository time.
 
@@ -276,4 +292,6 @@ If a post-restart inspection finds a durable commit marker but the exact histori
 
 Every authoritative Record v1 is expected to become Journal-attested.
 
-The Journal receives the exact Record v1 bytes, independently calculates SHA-256, assigns Journal ordering, and returns a signed receipt. Synchronous versus asynchronous attestation behavior is defined by the Journal architecture contract.
+The Journal receives the exact finalized Record v1 bytes, independently calculates SHA-256, assigns Journal ordering, and returns a signed receipt. Synchronous versus asynchronous attestation behavior is defined by the Journal architecture contract.
+
+Journal signature generation/verification follows `SIGNATURE-V1.md` for the applicable Journal purpose.
