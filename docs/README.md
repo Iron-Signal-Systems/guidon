@@ -17,6 +17,8 @@ Guidon follows one overriding reporting rule:
 - [Identity and trust](architecture/IDENTITY-AND-TRUST.md) — endpoint/user/gMSA identity, PKI, AD authorization, Controller signing, and break-glass Recovery Authority.
 - [Network security](architecture/NETWORK-SECURITY.md) — mTLS, identity binding, factual network observations, and PCAP/Wireshark acceptance.
 - [At-rest confidentiality](architecture/AT-REST-CONFIDENTIALITY.md) — initial ZFS storage-encryption boundary, application-encrypted Job control artifacts, Recovery Copy key separation, offline-media threat model, and explicit unsupported confidentiality claims.
+- [Cryptographic architecture and compliance profiles](architecture/CRYPTOGRAPHIC-ARCHITECTURE.md) — FIPS 140-3/CJIS-compatible implementation direction, validated-module truthfulness, cryptographic profiles, downgrade prevention, historical verification, and post-quantum migration.
+- [Presentation depth and operational authority](architecture/PRESENTATION-AND-AUTHORITY.md) — role-appropriate presentation depth, truthful summary projection, drill-down to authoritative facts, and separation of visibility from operational authority.
 - [FreeBSD Jail boundaries](architecture/JAIL-BOUNDARIES.md) — Repository/Journal responsibility, filesystem visibility, privilege, and host-root limitations.
 - [Threat model](architecture/THREAT-MODEL.md) — prevent/detect/fail-closed/record/recover/outside-claim classifications, including multi-host witnesses, Recovery Copy, MFA, Job-storage encryption, and explicit root-compromise boundaries.
 
@@ -48,8 +50,10 @@ In particular:
 - catalog-independent repository bootstrap and Journal public-key portability are governed by `REPOSITORY-FORMAT-V1.md`;
 - Guidon v1 TLS implementation behavior is governed by `TLS-PROFILE-V1.md`;
 - durable Job encryption and TOTP/MFA behavior are governed by `JOB-STORAGE-AND-MFA-V1.md`;
-- future independent Journal witness/external-anchor behavior is governed by `MULTI-WITNESS-AND-ANCHORING.md`; and
-- future independent Recovery Copy behavior is governed by `RECOVERY-COPY.md`.
+- future independent Journal witness/external-anchor behavior is governed by `MULTI-WITNESS-AND-ANCHORING.md`;
+- future independent Recovery Copy behavior is governed by `RECOVERY-COPY.md`;
+- cryptographic deployment/profile invariants are governed by `CRYPTOGRAPHIC-ARCHITECTURE.md`; individual v1 cryptographic contracts remain strict for their own artifact/version; and
+- presentation depth/summary truth and its separation from operational authority are governed by `PRESENTATION-AND-AUTHORITY.md`.
 
 ## Phase placement
 
