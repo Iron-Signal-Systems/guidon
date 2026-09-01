@@ -6,6 +6,8 @@ A Guidon component receives only the filesystem, network, key material, and oper
 
 Sharing a FreeBSD host does not justify sharing authority.
 
+The customer operates a **Guidon appliance**. Guidon owns the normal lifecycle of the FreeBSD/ZFS/Jail platform beneath it.
+
 ## Initial layout
 
 The minimum application layout is:
@@ -19,6 +21,58 @@ FreeBSD Host
 ```
 
 Guidon should not multiply Jails/services merely to create a microservice architecture. New boundaries must solve a demonstrated security, privilege, failure-isolation, or operational problem.
+
+## Appliance operational model
+
+Guidon is not intended to require normal administrators to become FreeBSD/ZFS/Jail administrators.
+
+Normal operations are exposed through Guidon-managed interfaces for tasks such as:
+
+```text
+initial appliance configuration
+network configuration
+storage enrollment/status
+protected-system enrollment
+backup/recovery policy
+Journal/recovery status
+Guidon updates
+health/alerting
+support bundle generation
+recovery operations
+```
+
+Routine product operation must not require administrators to manually:
+
+```text
+pkg update
+edit pf.conf
+manage Jail configuration
+manage Guidon ZFS dataset layout
+repair Guidon application permissions by hand
+manually rotate Guidon service certificates/keys
+SSH into the host to determine ordinary product health
+```
+
+The underlying FreeBSD/ZFS/Jail implementation remains visible in technical architecture/support documentation because its actual security/failure properties matter. It is not hidden by marketing language, but it is managed as part of the appliance rather than delegated to the customer as a second product to operate.
+
+## Support and break-glass OS access
+
+Guidon must not make the appliance abstraction an obstacle to emergency diagnosis or recovery.
+
+A controlled underlying OS/support path may exist for:
+
+```text
+console/SSH diagnostics
+zpool/ZFS inspection
+network diagnostics
+packet capture
+hardware/storage inspection
+low-level repair under explicit support procedure
+```
+
+This is an exceptional maintenance boundary, not the normal administrator API.
+
+Where Guidon can observe it, entry into an elevated support/break-glass maintenance mode should be explicit and auditable. The existence of such a path does not change the host-root limitation below.
 
 ## Repository Jail
 
@@ -50,7 +104,8 @@ It must not possess:
 - Journal signing private key;
 - Controller Job signing private key;
 - AD Authorization Broker signing private key;
-- Recovery Authority private key; or
+- Recovery Authority private key;
+- Recovery Copy administrator private key; or
 - protected-endpoint private keys.
 
 It must not directly write Journal datasets.
@@ -90,7 +145,8 @@ It must not:
 - issue Controller jobs;
 - authorize AD users;
 - execute endpoint operations;
-- modify Repository authoritative record bytes; or
+- modify Repository authoritative record bytes;
+- access Recovery Copy recovery data; or
 - access Recovery Authority private keys.
 
 The Journal understands only the common Record v1 envelope needed to validate/attest submissions. It does not become a backup-policy engine.
@@ -143,6 +199,8 @@ The Journal listener is restricted to explicitly authorized Guidon producers. A 
 
 Repository-to-Journal traffic remains mTLS protected even on the same host and is subject to the same PCAP/Wireshark acceptance testing as other Guidon-controlled connections.
 
+Future separate Journal/Recovery Copy/External Witness appliances retain the same no-plaintext-fallback principle but use their own defined identities and authorities rather than inheriting System 1 credentials automatically.
+
 ## Separate transport/signing credentials
 
 Repository and Journal have separate stable component identities and separate transport certificates.
@@ -151,7 +209,7 @@ The Journal transport certificate/private key is separate from the Journal Ed255
 
 ## Host responsibilities
 
-The FreeBSD host should remain infrastructure-focused:
+The FreeBSD host remains infrastructure-focused:
 
 ```text
 ZFS pool/dataset management
@@ -163,6 +221,47 @@ base OS patching
 ```
 
 Guidon backup semantics, Journal semantics, workload parsing, recovery engines, and application databases belong inside defined Guidon component boundaries rather than becoming host scripts/processes.
+
+Under the appliance model, **Guidon owns the normal management of these host responsibilities**. The fact that FreeBSD performs the function does not make the customer responsible for manually operating it.
+
+## Appliance update responsibility
+
+Guidon appliance updates must eventually own the complete supported update path, including as applicable:
+
+```text
+signed update artifact
+preflight/compatibility checks
+configuration/state protection
+controlled service/Jail lifecycle
+OS + Guidon component update
+schema/config migration
+restart
+health/integrity validation
+rollback/failure handling
+```
+
+An appliance update must not silently make previously valid Repository Format generations unreadable.
+
+Recovery compatibility across supported versions is a product requirement, not something delegated to manual FreeBSD package management.
+
+## Hardware/storage health surfaces
+
+Guidon should surface relevant underlying health facts through the appliance rather than requiring administrators to discover them manually.
+
+Examples include:
+
+```text
+ZFS pool state
+checksum/storage errors
+scrub results
+capacity pressure
+failed/degraded devices
+I/O failures
+SMART/device observations where available
+required post-failure verification epoch
+```
+
+Guidon must distinguish an observed storage condition from an unsupported conclusion. A configured mirror is not automatically labeled healthy without the defined observation.
 
 ## Dataset ownership and capacity separation
 
@@ -188,6 +287,8 @@ A Repository process/Jail failure does not require the Journal to fail. Previous
 
 A Journal failure does not require the Repository to discard valid incoming backup data. Durable-asynchronous operations may continue while defined Journal-gated transitions remain blocked.
 
+Future independent Journal B, External Witness, and Recovery Copy systems are separate appliance/failure domains as defined in their architecture documents. Merely placing two Jails on one physical host is never described as equivalent to separate-host failure independence.
+
 ## Host-root limitation
 
 Jails are a meaningful component and privilege-isolation boundary, but they are not a defense against complete FreeBSD host-root compromise.
@@ -197,7 +298,11 @@ The accurate claim is:
 ```text
 Repository Jail compromise != Journal Jail compromise
 Journal Jail compromise != Repository Jail compromise
-FreeBSD host-root compromise can potentially cross both boundaries
+FreeBSD host-root compromise can potentially cross both boundaries on that host
 ```
 
-Future HSM-backed signing, external checkpoint anchoring, or a physically separate Journal may strengthen the trust boundary if later justified. Guidon must not claim those protections before they exist.
+The appliance abstraction does not change this fact. An attacker/support operator who obtains true host root has authority below the Jail/application boundary and may potentially manipulate software, storage, process memory, mounted data, and locally available keys.
+
+Separately hosted Journal witnesses, an External Witness, and a Recovery Copy appliance may strengthen the overall failure/trust architecture because compromise of System 1 root does not automatically grant root/keys on those independent systems.
+
+Guidon must not claim those protections unless the independent systems are actually deployed and their boundaries tested.
