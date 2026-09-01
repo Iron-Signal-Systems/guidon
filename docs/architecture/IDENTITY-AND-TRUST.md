@@ -160,7 +160,7 @@ Examples:
 
 ```text
 Journal mTLS private key
-    != Journal Ed25519 attestation key
+    != Journal attestation private key for the active approved signature profile
 
 Controller mTLS private key
     != Controller Job signing key
@@ -345,6 +345,8 @@ Offline Recovery Copy Root CA
     -> Recovery Copy Administration Intermediate CA
         -> RSA-4096 Recovery Copy administrator certificate
 ```
+
+RSA-4096 is the initial classical Recovery Copy administration profile, not a permanent architectural algorithm invariant. Future approved credential profiles may replace or augment it under `CRYPTOGRAPHIC-ARCHITECTURE.md` without collapsing the separate Recovery Copy administration trust root or rewriting historical credential facts.
 
 The root private key should normally remain offline.
 
