@@ -299,6 +299,15 @@ This phase is intentionally about rebuilding a Windows system, not broad Windows
 ## Implement
 
 - supported Windows full-system/BMR capture profile;
+- explicit capture-path selection:
+  - supported virtualization-platform full-system path when that path establishes the required recovery properties; or
+  - host-local System Recovery Worker when the virtualization platform cannot provide the required full-system protection;
+- separate least-privilege Windows Agent and privileged System Recovery Worker boundaries;
+- mandatory gMSA execution identity for the System Recovery Worker on domain-joined Windows systems;
+- prohibition on named human accounts, password-bearing domain service accounts, and stored administrator credentials as the normal Worker identity;
+- bounded authorization of the Worker gMSA to only the Windows hosts that require it;
+- typed Worker operations only, with no generic shell, arbitrary PowerShell, or unrestricted remote-command surface;
+- explicit Windows service rights/privileges required for full-system capture and supported restore, with broad administrator-group membership avoided unless platform testing proves it necessary;
 - VSS coordination where required for the supported recovery profile;
 - boot/system-volume and required recovery metadata capture;
 - System State capture where required by the supported Windows/AD recovery path;
@@ -317,7 +326,26 @@ This phase is intentionally about rebuilding a Windows system, not broad Windows
 - explicit failure states for unsupported hardware/storage/boot conditions; and
 - factual Repository + Journal history for the complete recovery operation.
 
-## Canonical acceptance test
+## Canonical acceptance tests
+
+### Capture-path and privilege-boundary test
+
+```text
+virtual Windows system with supported platform recovery path
+    -> use supported virtualization capture path
+    -> privileged host-local Worker not required for the platform-provided operation
+
+physical/non-platform-managed domain-joined Windows system
+    -> install Windows Agent
+    -> install separate System Recovery Worker
+    -> Worker runs as authorized gMSA
+    -> Agent cannot perform Worker-only privileged operations
+    -> named/password-bearing user service identity is rejected
+    -> arbitrary shell/PowerShell execution is unavailable
+    -> full-system recovery material is captured
+```
+
+### System recovery test
 
 ```text
 protect supported Windows server

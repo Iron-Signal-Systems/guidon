@@ -41,6 +41,41 @@ For AD-connected user and gMSA identities, preserve available factual fields suc
 - provenance for sourced fields; and
 - authentication context.
 
+## Windows System Recovery Worker identity
+
+Guidon separates the ordinary Windows Agent from any privileged host-local component required for full-system protection.
+
+For a domain-joined Windows system where the required recovery level cannot be satisfied through a supported virtualization-platform capture path, Guidon requires a dedicated **System Recovery Worker** on that host.
+
+The normal execution identity for that Worker is a **gMSA**.
+
+The following are prohibited as the normal Worker identity:
+
+```text
+named human user account
+shared administrator account
+conventional domain service account with administrator-managed password
+stored Domain Admin / Enterprise Admin credential
+stored local Administrator credential
+```
+
+The System Recovery Worker gMSA is an execution identity, not a human identity and not a disaster-recovery root of trust. Scheduled Worker operations preserve:
+
+```text
+user.presence = not_present
+gmsa = exact executing gMSA identity
+service_identity = System Recovery Worker instance
+endpoint_identity = protected endpoint
+```
+
+A gMSA used by the System Recovery Worker is authorized only on the Windows computer set that actually requires that identity. Deployment should minimize the authorized-host set rather than making one broadly reusable recovery gMSA available throughout the domain merely for convenience.
+
+The Worker receives only the Windows privileges and service rights required to satisfy its defined full-system backup/recovery responsibilities. Where native Windows rights can provide the required capability, Guidon prefers explicit required rights over granting broad group membership merely for convenience. If the supported Windows recovery mechanism demonstrably requires additional authority, that requirement is documented, tested, and surfaced as part of the supported recovery profile.
+
+The Worker identity does not replace Guidon endpoint transport identity, Controller Job signing, human authorization, Recovery Authority, or Journal attestation.
+
+During catastrophic recovery, the original gMSA may be unavailable because AD itself may be unavailable. Recovery therefore follows the separate Recovery Authority/bootstrap path. After AD/trust is restored sufficiently for normal operation, the System Recovery Worker returns to its defined gMSA execution identity.
+
 ## AD authentication records
 
 Dedicated authentication records are preferred, for example:

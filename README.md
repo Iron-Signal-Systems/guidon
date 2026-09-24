@@ -160,6 +160,10 @@ The Recovery Copy appliance is not a second active Repository. The primary Guido
 
 For domain-joined Windows systems, normal Guidon backup services use a **Group Managed Service Account (gMSA)** with least privilege. Static stored domain service-account passwords and Domain Admin membership are not the normal operating model.
 
+For Windows systems where Guidon cannot obtain the required full-system protection through a supported virtualization-platform integration, Guidon uses a separate **System Recovery Worker** on the protected host. The Worker performs the privileged VSS/System State/full-system capture and supported restore operations required by the recovery profile. On a domain-joined Windows system it **must run as a gMSA**. A named human account, conventional password-bearing domain service account, or stored administrator credential is not an allowed normal execution identity for this Worker.
+
+The ordinary Guidon Windows Agent and the System Recovery Worker remain separate privilege boundaries. The Agent does not inherit full-system backup/restore authority merely because the Worker is installed. The Worker exposes only defined Guidon recovery operations and must not become a generic shell, arbitrary PowerShell runner, or remote administration service.
+
 Endpoint transport identity is separate from the gMSA. Each protected endpoint has a stable Guidon endpoint UUID and renewable certificate credentials bound to that identity.
 
 Manual privileged operations use exact-Job-bound authorization and policy-defined MFA. Initial MFA uses a 30-second TOTP profile; OTP values are never durably stored. Scheduled/system work truthfully records no interactive user presence rather than fabricating an MFA event.
@@ -217,6 +221,7 @@ The engineering contracts and architecture decisions currently frozen for implem
 - External Witness write-once/always-advancing checkpoint anchoring and root/rollback limitations;
 - Recovery Copy push-only replication, independent verification, separate recovery-administration PKI/MFA, and clean-appliance export/import;
 - endpoint, user, gMSA, PKI, AD authorization, MFA, and break-glass identity boundaries;
+- Windows system-recovery capture-path selection, Agent/Worker privilege separation, and mandatory gMSA execution for the privileged System Recovery Worker on domain-joined hosts;
 - Active Directory recovery sets, designated recovery DCs, isolated forest recovery, identity-core validation, and measured recovery readiness;
 - encrypted-at-rest durable Job/control artifacts and key separation;
 - network security and PCAP/Wireshark acceptance requirements;

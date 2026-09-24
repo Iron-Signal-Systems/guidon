@@ -50,6 +50,9 @@ This is an implementation starting point, not a permanent product limit.
 
 Multi-domain forests, complex trust topologies, specialized DNS delegation, physical domain controllers, read-only domain controllers, unusual storage layouts, and other cases are added only when their recovery behavior is explicitly supported and validated.
 
+For any supported domain controller whose complete recovery material is not supplied through a supported virtualization-platform recovery path, the Windows system-recovery architecture requires the host-local System Recovery Worker. During normal domain operation that privileged Worker runs as a gMSA and is separate from the ordinary Guidon Windows Agent. The gMSA is not relied upon as the forest-recovery authority after AD has failed; the Recovery Authority/bootstrap path remains independent.
+
+
 ## AD Recovery Set
 
 Guidon groups the exact artifacts and recovery facts required for an Active Directory recovery operation into an **AD Recovery Set**.
