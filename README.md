@@ -26,7 +26,7 @@ Backup creation is not the mission.
 
 The current Guidon scope is intentionally bounded:
 
-- **Windows Server and Workstation** — full system, volume, directory, and individual-file recovery;
+- **Windows Server and Workstation** — full system, volume, directory, and individual-file recovery, with **Active Directory forest recovery as an early first-class Windows workload** rather than a generic server restore;
 - **PostgreSQL** — physical base backup, WAL protection, point-in-time recovery, logical backup, and database/schema/table recovery;
 - **Microsoft SQL Server** — full/differential/log backup, complete database recovery, alternate-name/location recovery, point-in-time recovery, and later granular recovery through supported isolated restore/extraction paths;
 - **Linux** — supported file/directory, volume, and bare-metal recovery using Linux-native implementation and an explicit supported distribution/filesystem/boot/storage matrix; and
@@ -166,6 +166,10 @@ Manual privileged operations use exact-Job-bound authorization and policy-define
 
 Bare-metal recovery must not depend on working AD trust, a known restored local Administrator password, an immediately usable gMSA, secure-channel repair, or a historic LAPS password. A controlled one-time first-boot recovery bootstrap may create a unique temporary local administrator only under signed recovery authorization, independent recovery MFA where required, expiry, replay protection, watchdog cleanup, account removal, and verified bootstrap disarm before final recovery validation.
 
+Active Directory recovery is a first-class Guidon recovery workload. The early product objective is that an authorized administrator can review and authorize an exact recovery plan, start a forest/domain recovery without relying on the failed forest for authority, and restore a minimum usable identity core before rebuilding remaining domain controllers. Guidon distinguishes a rapid operational recovery path from compromise recovery, where stronger credential/trust-reset and clean-recovery actions may be required.
+
+Guidon records workload-level milestones such as `IDENTITY_CORE_OPERATIONAL` and `FULL_FOREST_RECOVERED` in addition to the generic recovery states. These milestones are reported only after the exact AD/DNS/SYSVOL/Kerberos/LDAP validation required by the supported recovery profile has actually completed. Recovery-time objectives are measured from destructive recovery tests; they are not inferred from backup completion.
+
 ---
 
 ## Repository and Journal trust model
@@ -213,6 +217,7 @@ The engineering contracts and architecture decisions currently frozen for implem
 - External Witness write-once/always-advancing checkpoint anchoring and root/rollback limitations;
 - Recovery Copy push-only replication, independent verification, separate recovery-administration PKI/MFA, and clean-appliance export/import;
 - endpoint, user, gMSA, PKI, AD authorization, MFA, and break-glass identity boundaries;
+- Active Directory recovery sets, designated recovery DCs, isolated forest recovery, identity-core validation, and measured recovery readiness;
 - encrypted-at-rest durable Job/control artifacts and key separation;
 - network security and PCAP/Wireshark acceptance requirements;
 - FreeBSD appliance/Jail responsibility and privilege boundaries;

@@ -15,6 +15,7 @@ Guidon follows one overriding reporting rule:
 - [Multi-witness and external anchoring](architecture/MULTI-WITNESS-AND-ANCHORING.md) — independent Journal A/B witnesses, degraded 1-of-2 operational policy direction, witness-conflict detection, and the external COW/write-once/always-advancing historical anchor.
 - [Recovery Copy appliance](architecture/RECOVERY-COPY.md) — separate push-only recovery-copy system, independent verification, separate recovery-administration trust root, initial classical RSA-4096 administrator credential profile, MFA, and administrator-controlled export/re-import.
 - [Identity and trust](architecture/IDENTITY-AND-TRUST.md) — endpoint/user/gMSA identity, PKI, AD authorization, Controller signing, and break-glass Recovery Authority.
+- [Active Directory recovery](architecture/ACTIVE-DIRECTORY-RECOVERY.md) — AD Recovery Sets, designated recovery DCs, recovery isolation, rapid versus compromise recovery, identity-core milestones, validation gates, and measured recovery readiness.
 - [Network security](architecture/NETWORK-SECURITY.md) — mTLS, identity binding, factual network observations, and PCAP/Wireshark acceptance.
 - [At-rest confidentiality](architecture/AT-REST-CONFIDENTIALITY.md) — initial ZFS storage-encryption boundary, application-encrypted Job control artifacts, Recovery Copy key separation, offline-media threat model, and explicit unsupported confidentiality claims.
 - [Cryptographic architecture and compliance profiles](architecture/CRYPTOGRAPHIC-ARCHITECTURE.md) — FIPS 140-3/CJIS-compatible implementation direction, validated-module truthfulness, cryptographic profiles, downgrade prevention, historical verification, and post-quantum migration.
@@ -60,6 +61,8 @@ In particular:
 Phase 0 freezes architecture/trust invariants that would be expensive to change after implementation.
 
 Phase 1 intentionally remains small: one Repository plus one operational Journal. It must implement the artifact identities, exact-byte contracts, Job/control-storage confidentiality where applicable, and clean authority boundaries needed for later expansion, but Phase 1 does **not** require multi-Journal quorum, an External Witness, or a Recovery Copy appliance.
+
+After the first minimal Windows recovery path, the roadmap intentionally prioritizes Windows system recovery and Active Directory forest recovery before broadening Windows operational features. Active Directory is treated as a workload with specialized recovery semantics, not merely as another Windows server image.
 
 The mature multi-system direction is documented now so Phase 1 does not accidentally create a Repository/Journal format or identity model that requires a future redesign.
 

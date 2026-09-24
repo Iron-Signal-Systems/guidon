@@ -20,23 +20,25 @@ The planning ranges below are engineering targets, not release promises. Some wo
 | 0 — Foundation | 1–2 weeks | Core contracts and trust boundaries frozen enough to implement |
 | 1 — Repository core | 3–5 weeks | Durable, journal-attested, verifiable Guidon recovery-point storage |
 | 2 — First Windows recovery path | 4–6 weeks | Back up, delete, recover, and verify a Windows file |
-| 3 — Windows operational protection and control | 4–8 weeks | Repeatable file/directory protection, signed control, attribution |
-| 4 — Windows volume recovery | 6–10 weeks | Reconstruct and verify a protected Windows data volume |
-| 5 — Windows bare-metal DR | 10–16 weeks | Rebuild a failed Windows system, including broken-AD cases |
-| 6 — PostgreSQL | 10–14 weeks | Base/WAL PITR plus logical granular recovery |
-| 7 — Microsoft SQL Server | 10–14 weeks | Full/diff/log protection and verified PITR |
-| 8 — Linux recovery | 10–16 weeks | File, volume, and supported bare-metal Linux recovery |
-| 9 — Virtualization recovery | 16–24 weeks | Recover supported Proxmox VE, VMware vSphere, and Hyper-V virtual machines |
-| 10 — Guidon and repository DR | 6–10 weeks | Recover Guidon when controller/catalog/repository components fail |
-| 11 — Pilot hardening | 4–8 months | Installation, upgrades, scale, abuse testing, runbooks, pilot readiness |
+| 3 — Windows system recovery foundation | 6–10 weeks | Recover a failed Windows system without depending on working AD trust |
+| 4 — Active Directory forest recovery | 6–10 weeks | Rebuild a minimum usable AD identity core through a guided, validated recovery plan |
+| 5 — Windows operational protection and control | 4–8 weeks | Repeatable protection, signed control, attribution, and AD recovery readiness |
+| 6 — Windows volume recovery | 4–8 weeks | Reconstruct and verify a protected Windows data volume |
+| 7 — PostgreSQL | 10–14 weeks | Base/WAL PITR plus logical granular recovery |
+| 8 — Microsoft SQL Server | 10–14 weeks | Full/diff/log protection and verified PITR |
+| 9 — Linux recovery | 10–16 weeks | File, volume, and supported bare-metal Linux recovery |
+| 10 — Virtualization recovery | 16–24 weeks | Recover supported Proxmox VE, VMware vSphere, and Hyper-V virtual machines |
+| 11 — Guidon and repository DR | 6–10 weeks | Recover Guidon when controller/catalog/repository components fail |
+| 12 — Pilot hardening | 4–8 months | Installation, upgrades, scale, abuse testing, runbooks, pilot readiness |
 
 A reasonable planning target is:
 
 ```text
 First verified Windows file recovery:          ~2–3 months
-Windows bare-metal recovery:                   ~7–11 months
-Windows + PostgreSQL + MSSQL capability:       ~12–17 months
-Linux + supported virtualization capability:   ~18–27 months
+First Windows system rebuild:                  ~4–6 months
+First controlled AD identity-core recovery:    ~5–8 months
+Windows + PostgreSQL + MSSQL capability:       ~13–18 months
+Linux + supported virtualization capability:   ~19–28 months
 Controlled pilot candidate:                    ~24–32 months
 Broader external pilot readiness:              ~30–40 months
 ```
@@ -286,11 +288,186 @@ Guidon can protect and recover a Windows file end to end while preserving the de
 
 ---
 
-# Phase 3 — Windows operational protection and control
+# Phase 3 — Windows system recovery foundation
+
+**Target:** 6–10 weeks
+
+Build the minimum supported Windows system-recovery path required before Active Directory can be treated as a recoverable workload.
+
+This phase is intentionally about rebuilding a Windows system, not broad Windows backup feature coverage.
+
+## Implement
+
+- supported Windows full-system/BMR capture profile;
+- VSS coordination where required for the supported recovery profile;
+- boot/system-volume and required recovery metadata capture;
+- System State capture where required by the supported Windows/AD recovery path;
+- supported EFI/BCD/partition/storage reconstruction;
+- recovery media/bootstrap capable of operating without working domain trust;
+- exact recovery-target identity and mapping;
+- isolated recovery-network support;
+- constrained signed recovery Job execution;
+- Recovery Authority authorization independent of normal AD availability;
+- independent recovery MFA where policy requires it;
+- controlled temporary first-boot local recovery administrator where required;
+- expiry/watchdog cleanup and verified bootstrap disarm;
+- original-target recovery;
+- defined alternate-target recovery for the initial supported virtual profile;
+- post-boot operating-system validation;
+- explicit failure states for unsupported hardware/storage/boot conditions; and
+- factual Repository + Journal history for the complete recovery operation.
+
+## Canonical acceptance test
+
+```text
+protect supported Windows server
+    -> verify recovery point
+    -> destroy server
+    -> make normal AD trust unavailable
+    -> authorize exact recovery Job
+    -> reconstruct system
+    -> boot
+    -> validate supported OS/service state
+    -> remove/disarm temporary recovery bootstrap
+    -> inspect Repository + Journal history
+```
+
+## Exit gate
+
+Guidon can rebuild and validate a supported failed Windows system without requiring the failed environment's normal AD trust or historic privileged credentials to start the recovery.
+
+---
+
+# Phase 4 — Active Directory forest recovery
+
+**Target:** 6–10 weeks
+
+Make Active Directory one of Guidon's first major workload-specific recovery capabilities.
+
+The product objective is operationally simple: an authorized administrator can review an exact recovery plan, start recovery, and restore a minimum usable identity core as quickly as the supported environment permits. Guidon then rebuilds or guides rebuilding of remaining domain controllers after the identity core is healthy.
+
+The initial supported profile should be deliberately narrow. A suitable first target is one forest, one domain, two to four supported Windows Server domain controllers using AD-integrated DNS and DFSR SYSVOL, with one designated recovery DC and one secondary candidate. Broader topologies are added only after the narrow recovery path is repeatedly proven.
+
+## Define and implement
+
+- AD Recovery Set identity binding the exact recovery point and required AD recovery artifacts;
+- designated primary and secondary recovery DC identities;
+- forest/domain identity and functional-level observations;
+- DC/site/subnet/topology observations required by the supported recovery path;
+- FSMO role observations;
+- Global Catalog observations;
+- AD-integrated DNS configuration required for recovery;
+- DFSR SYSVOL recovery requirements;
+- time-hierarchy observations required for recovery;
+- supported trust observations without claiming recovery of a trust that was not actually validated;
+- recovery-plan generation before destructive action;
+- exact signed recovery Job binding to the reviewed plan;
+- Recovery Authority authorization independent of the failed forest;
+- isolated recovery environment before production reconnection;
+- **rapid operational recovery** mode for known non-compromise failure;
+- **compromise recovery** mode with stronger clean-recovery, credential, trust, and persistence-remediation requirements;
+- restore of the designated first writable recovery DC;
+- supported authoritative SYSVOL recovery behavior;
+- FSMO recovery/seizure behavior appropriate to the declared recovery mode;
+- RID and domain-controller metadata handling required by the supported recovery procedure;
+- DNS and service-location restoration;
+- Global Catalog establishment where required;
+- policy-defined privileged credential and `krbtgt` recovery/reset workflow where required;
+- policy-defined gMSA/trust remediation when compromise recovery requires it;
+- fresh deployment/promotion path for remaining domain controllers rather than blindly restoring every DC;
+- exact workload-level recovery milestones;
+- destructive isolated recovery testing; and
+- measured recovery-time observations.
+
+## AD recovery milestones
+
+Guidon may report workload-specific milestones in addition to the generic recovery states:
+
+```text
+IDENTITY_CORE_OPERATIONAL
+FULL_FOREST_RECOVERED
+```
+
+`IDENTITY_CORE_OPERATIONAL` is reported only after the required supported health gates have actually succeeded. At minimum for the initial profile these include the applicable:
+
+```text
+AD DS service availability
+SYSVOL share
+NETLOGON share
+DNS service and required SRV registration
+LDAP bind
+Kerberos authentication/TGT test
+Global Catalog availability when required
+FSMO ownership/availability
+supported dcdiag health checks
+recovery bootstrap disarmed
+```
+
+A green backup status is not sufficient.
+
+`FULL_FOREST_RECOVERED` is later and distinct. It requires the defined remaining-domain-controller deployment/recovery work, replication health where applicable, and the complete supported forest validation profile.
+
+## Recovery readiness
+
+For each protected forest, Guidon should be able to present facts such as:
+
+```text
+latest AD Recovery Set
+required artifacts present
+Repository verification state
+Journal attestation state
+Recovery Authority availability
+designated recovery DC
+last isolated recovery test
+last identity-core validation result
+measured time to IDENTITY_CORE_OPERATIONAL
+```
+
+The measured recovery time is historical fact from an actual recovery exercise. Guidon must not manufacture an RTO from backup duration or configuration.
+
+## Canonical destructive acceptance test
+
+```text
+08:55  forest healthy
+08:56  verified AD Recovery Set complete
+09:00  destroy/disable all production DCs
+
+administrator:
+    select forest
+    select exact recovery point
+    review generated recovery plan
+    authorize exact signed recovery Job
+
+Guidon:
+    validate Recovery Set
+    validate Repository/Journal requirements
+    establish isolated recovery environment
+    restore designated recovery DC
+    perform supported AD recovery procedure
+    restore/establish SYSVOL + DNS + FSMO + GC as applicable
+    validate LDAP + Kerberos + DNS + SYSVOL/NETLOGON
+    disarm temporary recovery bootstrap
+
+        -> IDENTITY_CORE_OPERATIONAL
+
+remaining DCs:
+    deploy/promote fresh according to the supported plan
+    validate replication and forest health
+
+        -> FULL_FOREST_RECOVERED
+```
+
+## Exit gate
+
+For the initial supported topology, an authorized administrator who did not build Guidon can start from complete loss of production domain controllers, review and authorize the recovery plan, restore a validated minimum AD identity core without depending on the failed forest for authorization, and then complete the supported forest recovery procedure. Guidon records the actual time to each recovery milestone.
+
+---
+
+# Phase 5 — Windows operational protection and control
 
 **Target:** 4–8 weeks
 
-Expand the Windows path into repeatable operational protection without introducing arbitrary remote administration.
+Expand the Windows path into repeatable operational protection without introducing arbitrary remote administration, and turn AD recovery from a one-time engineering demonstration into a continuously assessable recovery capability.
 
 ## Implement
 
@@ -310,88 +487,44 @@ Expand the Windows path into repeatable operational protection without introduci
 - endpoint certificate rotation/rebinding flow;
 - service recovery/restart behavior;
 - operator-facing exact failure states;
-- basic operational status surfaces; and
+- basic operational status surfaces;
+- AD Recovery Set freshness/readiness status;
+- scheduled isolated AD recovery exercises for supported test environments;
+- preservation of measured identity-core recovery results without converting stale tests into current proof; and
 - expanded security/failure tests.
 
 ## Exit gate
 
-Guidon can protect a practical Windows file/directory scope repeatedly, perform controlled recovery/deletion operations under the defined signed-Job, encrypted-at-rest, authorization, and MFA model, and explain exactly who/what performed each meaningful action without retaining OTP secrets.
+Guidon can protect a practical Windows file/directory scope repeatedly, perform controlled recovery/deletion operations under the defined signed-Job, encrypted-at-rest, authorization, and MFA model, explain exactly who/what performed each meaningful action without retaining OTP secrets, and report the current factual readiness of supported AD Recovery Sets.
 
 ---
 
-# Phase 4 — Windows volume recovery
+# Phase 6 — Windows volume recovery
 
-**Target:** 6–10 weeks
+**Target:** 4–8 weeks
 
-Implement a defined Windows volume-level protection/recovery path.
+Expand the Windows recovery engine to a defined data-volume protection/recovery path after full-system recovery and the initial Active Directory recovery path have already been demonstrated.
 
 ## Implement
 
 - supported Windows volume capture model;
-- consistency/VSS boundary;
-- volume reconstruction manifest;
-- required boot/filesystem metadata where applicable;
-- alternate-target volume reconstruction;
-- integrity verification after reconstruction;
-- original-target replacement flow under explicit authorization;
-- recovery-space/capacity checks; and
-- interruption/restart behavior.
+- VSS coordination where required for consistency;
+- partition/filesystem identity;
+- volume metadata and required NTFS recovery information;
+- efficient object/chunk representation without weakening immutable object identity;
+- complete volume reconstruction;
+- alternate-volume recovery where supported;
+- post-reconstruction filesystem verification;
+- recovery validation; and
+- interruption/restart behavior during large recovery.
 
 ## Exit gate
 
-Guidon can reconstruct and verify a supported Windows data volume from committed recovery data.
+Guidon can reconstruct and verify a supported Windows data volume from committed recovery data and distinguish successful byte reconstruction from successful workload validation.
 
 ---
 
-# Phase 5 — Windows bare-metal DR
-
-**Target:** 10–16 weeks
-
-Recover a failed Windows system without making successful disaster recovery depend on the original AD trust or unknown historical local credentials.
-
-## Implement
-
-- bootable Guidon recovery environment;
-- full-system reconstruction path;
-- storage/partition/boot reconstruction;
-- system/boot-volume handling;
-- protected metadata required for supported recovery;
-- offline Recovery Authority verification;
-- signed/scoped/short-lived recovery authorization;
-- independent recovery MFA that does not depend on production AD availability;
-- encrypted-at-rest recovery Jobs and separately protected temporary recovery credentials;
-- one-time temporary recovery-administrator bootstrap;
-- one-time credential display/retrieval process;
-- expiration/watchdog cleanup;
-- secure-channel repair as an optional convenience attempt;
-- domain/gMSA re-establishment where possible;
-- recovery-bootstrap disarm/removal verification;
-- full factual recovery history; and
-- workload/system validation checks.
-
-## Failure/abuse tests
-
-- AD unavailable;
-- secure channel broken;
-- old machine password unusable;
-- original local Administrator password unknown;
-- historical LAPS password unavailable/invalid;
-- replay old recovery authorization;
-- replay a previously accepted TOTP authorization against another Job;
-- use recovery authorization for the wrong endpoint;
-- interrupt recovery before first boot;
-- interrupt recovery after temporary administrator creation;
-- expire temporary recovery access;
-- fail domain repair and continue controlled local recovery;
-- verify bootstrap cleanup before final `VALIDATED` state.
-
-## Exit gate
-
-Guidon can rebuild a supported Windows system from recovery data and regain controlled administrative access without depending on the failed environment's AD trust, an unknown historic local password, or production-AD availability for recovery MFA.
-
----
-
-# Phase 6 — PostgreSQL
+# Phase 7 — PostgreSQL
 
 **Target:** 10–14 weeks
 
@@ -416,7 +549,7 @@ Guidon can perform and verify supported PostgreSQL recovery paths, including a d
 
 ---
 
-# Phase 7 — Microsoft SQL Server
+# Phase 8 — Microsoft SQL Server
 
 **Target:** 10–14 weeks
 
@@ -442,7 +575,7 @@ Guidon can perform and verify supported MSSQL full/differential/log recovery cha
 
 ---
 
-# Phase 8 — Linux recovery
+# Phase 9 — Linux recovery
 
 **Target:** 10–16 weeks
 
@@ -475,7 +608,7 @@ Guidon can protect and recover files, reconstruct and verify a supported Linux v
 
 ---
 
-# Phase 9 — Virtualization recovery
+# Phase 10 — Virtualization recovery
 
 **Target:** 16–24 weeks
 
@@ -503,7 +636,7 @@ For each supported platform, preserve and verify the applicable facts needed for
 
 Change-tracking state is an optimization fact, not proof that an incremental recovery chain is valid. If continuity is reset, unavailable, contradictory, or cannot be established, Guidon must not silently accept the incremental chain and may require a new full baseline.
 
-## Phase 9A — Proxmox VE
+## Phase 10A — Proxmox VE
 
 Implement Proxmox VE QEMU/KVM virtual-machine protection and recovery first.
 
@@ -529,7 +662,7 @@ Proxmox LXC containers are explicitly outside the initial Proxmox phase.
 
 Guidon can recover and validate a supported Proxmox VE QEMU/KVM VM, including its configuration and required virtual disks, to an original or defined alternate Proxmox recovery target.
 
-## Phase 9B — VMware vSphere
+## Phase 10B — VMware vSphere
 
 Implement VMware vSphere/ESXi virtual-machine protection and recovery using supported VMware interfaces and explicit change-tracking provenance.
 
@@ -555,7 +688,7 @@ Implement VMware vSphere/ESXi virtual-machine protection and recovery using supp
 
 Guidon can recover and validate a supported VMware vSphere VM and refuses to represent an incremental chain as valid when required CBT/change-tracking continuity cannot be established.
 
-## Phase 9C — Hyper-V
+## Phase 10C — Hyper-V
 
 Implement Microsoft Hyper-V virtual-machine protection and recovery using Windows-native/supported Hyper-V interfaces.
 
@@ -582,7 +715,7 @@ Hyper-V-specific implementation should follow the Windows-native engineering rul
 
 Guidon can recover and validate a supported Hyper-V VM, including required configuration and VHDX data, to an original or defined alternate Hyper-V recovery target.
 
-## Phase 9 exit gate
+## Phase 10 exit gate
 
 Guidon can perform and verify supported full-VM and individual-virtual-disk recovery on Proxmox VE, VMware vSphere, and Hyper-V while preserving platform-native identity, consistency, change-tracking, storage, and network facts without treating configuration presence as proof of recoverability.
 
@@ -590,7 +723,7 @@ Cross-hypervisor conversion, arbitrary P2V/V2P, Kubernetes/container recovery, a
 
 ---
 
-# Phase 10 — Guidon and repository DR
+# Phase 11 — Guidon and repository DR
 
 **Target:** 6–10 weeks
 
@@ -628,7 +761,7 @@ Starting from intact authoritative Guidon recovery data or an independently veri
 
 ---
 
-# Phase 11 — Pilot hardening
+# Phase 12 — Pilot hardening
 
 **Target:** 4–8 months
 
